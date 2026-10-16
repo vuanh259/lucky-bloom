@@ -14,3 +14,7 @@ data/
 dist-pages/
 .env.*.local
 supabase/.temp/
+
+.env.*
+!.env.example
+!.env.supabase.example
