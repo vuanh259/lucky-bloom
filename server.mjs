@@ -189,9 +189,9 @@ export function createApp(options = {}) {
           const previous = db.prepare('SELECT spin_id FROM choices WHERE user_id=?').get(id);
           const spin = db.prepare('SELECT id FROM spins WHERE id=? AND user_id=?').get(Number(b.spinId) || 0, id);
           if (!spin) throw fail(400, 'Hãy chọn một món quà từ 3 lượt của bạn.');
+          if (previous && previous.spin_id !== spin.id && receiving.record(id)) throw fail(409, 'Bạn đã gửi thông tin nhận quà nên không thể đổi quà nữa.');
           if (!previous || previous.spin_id !== spin.id) {
-            // Confirmed gift changes invalidate receiving details, including the old QR and cash amount.
-            db.prepare('DELETE FROM fulfillment WHERE user_id=?').run(id);
+            // Only unfulfilled choices can change; saved contact/payment information is preserved.
             db.prepare('INSERT INTO choices(user_id,spin_id) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET spin_id=excluded.spin_id,created_at=CURRENT_TIMESTAMP').run(id, spin.id);
           }
           db.exec('COMMIT');

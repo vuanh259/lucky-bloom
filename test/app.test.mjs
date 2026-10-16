@@ -232,23 +232,28 @@ test('public prize structure has quantities only; only admin can configure it; p
   }
 });
 
-test('changing gift resets receiving details, keeps 3 turns, rejects stale receipt and preserves same-choice submissions', async t => {
-  const server = await serve(t), owner = client(server), outsider = client(server), admin = client(server);
-  const p = await completeSpins(owner); await setValues(admin);
-  const qrData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=';
-  await owner('fulfillment',{mode:'cash',method:'qr',qrData,expectedAmount:50000,expectedSpinId:p.spins[0].id});
-  const again=await owner('choose',{spinId:p.spins[0].id});
-  assert.equal(again.status,200); assert.equal(again.data.fulfillment.hasQr,true);
-  await register(outsider,'Người khác');
-  for(let i=0;i<3;i++) await outsider('spin',{});
-  const other=(await outsider('me')).data;
-  assert.equal((await owner('choose',{spinId:other.spins[0].id})).status,400);
-  assert.equal((await owner('me')).data.fulfillment.hasQr,true);
-  const changed=await owner('choose',{spinId:p.spins[1].id});
-  assert.equal(changed.status,200); assert.equal(changed.data.choice.spin_id,p.spins[1].id);
-  assert.equal(changed.data.fulfillment,null); assert.equal(changed.data.remaining,0);
-  assert.equal(changed.data.spins.length,3); assert.equal((await owner('qr')).status,404);
-  assert.equal((await owner('fulfillment',{mode:'gift',phone:'0900000000',address:'Địa chỉ kiểm thử, không giao quà',expectedSpinId:p.spins[0].id})).status,409);
-  assert.equal((await owner('fulfillment',{mode:'gift',phone:'0900000000',address:'Địa chỉ kiểm thử, không giao quà',expectedSpinId:p.spins[1].id})).status,200);
-  assert.equal((await admin('admin/players')).data.find(row=>row.id===p.id).choice.spin_id,p.spins[1].id);
+
+test('gift can change before receiving is submitted; shipping, bank and QR submissions lock it', async t => {
+  for (const method of ['gift','bank','qr']) {
+    const server=await serve(t), owner=client(server), outsider=client(server), admin=client(server);
+    const p=await completeSpins(owner); await setValues(admin);
+    const changed=await owner('choose',{spinId:p.spins[1].id});
+    assert.equal(changed.status,200); assert.equal(changed.data.choice.spin_id,p.spins[1].id);
+    assert.equal(changed.data.fulfillment,null); assert.equal(changed.data.remaining,0);
+    const qrData='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=';
+    const details=method==='gift'?{mode:'gift',phone:'0900000000',address:'Địa chỉ kiểm thử, shipper giao được'}:method==='bank'?{mode:'cash',method:'bank',bank:'Ngân hàng kiểm thử',account:'000000000001',holder:'NGUOI KIEM THU',expectedAmount:50000}:{mode:'cash',method:'qr',qrData,expectedAmount:50000};
+    assert.equal((await owner('fulfillment',{...details,expectedSpinId:p.spins[0].id})).status,409);
+    assert.equal((await owner('fulfillment',{...details,expectedSpinId:p.spins[1].id})).status,200);
+    const before=(await owner('me')).data;
+    assert.equal((await owner('choose',{spinId:p.spins[2].id})).status,409);
+    const after=(await owner('me')).data;
+    assert.equal(after.choice.spin_id,p.spins[1].id); assert.deepEqual(after.fulfillment,before.fulfillment);
+    assert.equal(after.spins.length,3); assert.equal(after.remaining,0);
+    assert.equal((await owner('choose',{spinId:p.spins[1].id})).status,200);
+    if(method==='qr') assert.equal((await fetch('http://127.0.0.1:'+server.address().port+'/api/qr',{headers:{Cookie:owner.cookie}})).status,200);
+    await register(outsider,'Người khác'); for(let i=0;i<3;i++) await outsider('spin',{});
+    const other=(await outsider('me')).data;
+    assert.equal((await owner('choose',{spinId:other.spins[0].id})).status,400);
+    assert.equal((await admin('admin/players')).data.find(row=>row.id===p.id).choice.spin_id,p.spins[1].id);
+  }
 });

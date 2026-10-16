@@ -56,7 +56,7 @@ npm run check
 npm test
 ```
 
-Kiểm thử bao gồm giới hạn 3 lượt khi gọi đồng thời, chọn quà thuộc tài khoản, đổi quà và đặt lại thông tin nhận đúng món mới, phân quyền nam/nữ và quản trị, CSRF, vào lại bằng cookie và giữ dữ liệu khi restart. GitHub Actions chạy các kiểm tra này trên push/PR.
+Kiểm thử bao gồm giới hạn 3 lượt khi gọi đồng thời, chọn quà thuộc tài khoản, đổi quà trước khi gửi thông tin và khóa quà sau khi hoàn tất, phân quyền nam/nữ và quản trị, CSRF, vào lại bằng cookie và giữ dữ liệu khi restart. GitHub Actions chạy các kiểm tra này trên push/PR.
 
 ## Giới hạn và vận hành
 
@@ -101,4 +101,4 @@ Chốt quà mở hộp thoại cách nhận; gửi xong mở lời chúc 20/10, 
 
 ## Đổi món quà
 
-Trên trình duyệt sở hữu phiên chơi, có thể chọn lại một trong 3 kết quả, bấm Xác nhận đổi quà rồi xác nhận ở popup. Đổi sang kết quả khác sẽ xóa thông tin nhận/QR cũ trong cùng giao dịch và yêu cầu gửi lại cách nhận. Xác nhận lại đúng kết quả cũ giữ nguyên thông tin. Không được thêm lượt quay hay chọn kết quả của người khác. Phiên xem lại chỉ bằng tên/giới tính vẫn không có quyền đổi.
+Trên trình duyệt sở hữu phiên chơi, có thể chọn lại một trong 3 kết quả, bấm Xác nhận đổi quà rồi xác nhận ở popup. Chỉ được đổi khi chưa gửi thành công thông tin nhận. Sau khi lưu địa chỉ/SĐT, ngân hàng hoặc QR, máy chủ khóa món quà; yêu cầu đổi trực tiếp qua API cũng bị chặn, thông tin nhận được giữ nguyên. Xác nhận lại đúng kết quả cũ giữ nguyên thông tin. Không được thêm lượt quay hay chọn kết quả của người khác. Phiên xem lại chỉ bằng tên/giới tính vẫn không có quyền đổi.
