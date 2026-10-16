@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let gifts = [], user = null, mode = 'register', selected = null, spinning = false, rotation = 0;
+let gifts = [], user = null, selected = null, spinning = false, rotation = 0;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 async function api(path, data) {
   const res = await fetch('/api/' + path, data === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -21,14 +21,6 @@ function drawWheel() {
   });
   for (let i = 0; i < 36; i++) { const a = i * Math.PI * 2 / 36; ctx.beginPath(); ctx.arc(c + Math.cos(a) * (r - 14), c + Math.sin(a) * (r - 14), 3.4, 0, Math.PI * 2); ctx.fillStyle = '#fff9ef'; ctx.fill(); }
 }
-function setMode(next) {
-  mode = next; $('auth-error').textContent = ''; $('registration-fields').hidden = mode === 'login';
-  $('name').required = mode === 'register';
-  document.querySelectorAll('[name=gender]').forEach(el => el.required = mode === 'register');
-  $('password').autocomplete = mode === 'register' ? 'new-password' : 'current-password';
-  $('auth-submit').textContent = mode === 'register' ? 'Nhận 3 lượt may mắn ↗' : 'Đăng nhập và tiếp tục ♡';
-  ['register', 'login'].forEach(m => { $(m + '-tab').classList.toggle('active', m === mode); $(m + '-tab').setAttribute('aria-selected', String(m === mode)); });
-}
 function render() {
   $('welcome').hidden = !!user; $('play').hidden = !user; $('account').replaceChildren();
   const male = user?.gender === 'male'; $('bye').hidden = !male;
@@ -36,8 +28,7 @@ function render() {
   if (!male && location.pathname === '/bai-anh-em') history.replaceState({}, '', '/');
   if (!user) return;
   const name = document.createElement('span'); name.textContent = '♡ ' + user.name;
-  const logout = document.createElement('button'); logout.className = 'text-button'; logout.textContent = 'Đăng xuất'; logout.onclick = signOut;
-  $('account').append(name, logout); if (male) return;
+  $('account').append(name); if (male) return;
   $('greeting').textContent = `Chào ${user.name} ♡`;
   $('play-hint').textContent = user.choice ? 'Một món quà nhỏ đang chờ đến tay bạn.' : user.remaining ? `Bạn còn ${user.remaining} lượt khám phá điều dễ thương.` : 'Ba điều dễ thương đã ở đây. Bạn thích món nào nhất?';
   $('turns').replaceChildren();
@@ -59,15 +50,9 @@ function render() {
   $('chosen').hidden = !user.choice;
   if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = 'Đã chốt quà! Người tổ chức đã có lựa chọn của bạn ♡'; $('chosen').append(b, p); }
 }
-async function signOut() {
-  try { await api('logout', {}); user = null; selected = null; render(); } catch (e) { toast(e.message); }
-}
-$('bye-logout').onclick = signOut;
-$('register-tab').onclick = () => setMode('register'); $('login-tab').onclick = () => setMode('login');
-$('show-password').onclick = () => { const show = $('password').type === 'password'; $('password').type = show ? 'text' : 'password'; $('show-password').setAttribute('aria-label', show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'); };
 $('auth-form').onsubmit = async event => {
   event.preventDefault(); $('auth-submit').disabled = true; $('auth-error').textContent = '';
-  try { const data = Object.fromEntries(new FormData(event.currentTarget)); user = await api(mode === 'register' ? 'register' : 'login', data); $('password').value = ''; selected = null; render(); }
+  try { const data = Object.fromEntries(new FormData(event.currentTarget)); user = await api('join', data); selected = null; render(); }
   catch (e) { $('auth-error').textContent = e.message; }
   finally { $('auth-submit').disabled = false; }
 };
@@ -99,7 +84,7 @@ async function init() {
   try {
     gifts = await api('gifts'); drawWheel();
     const res = await fetch('/api/me');
-    if (res.ok) user = await res.json(); else if (res.status !== 401) throw new Error('Chưa tải được tài khoản. Hãy tải lại trang.');
+    if (res.ok) user = await res.json(); else if (res.status !== 401) throw new Error('Chưa tải được lượt chơi. Hãy tải lại trang.');
     render();
   } catch (e) { $('auth-error').textContent = e.message || 'Chưa kết nối được máy chủ. Hãy tải lại trang.'; $('auth-submit').disabled = true; }
 }

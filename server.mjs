@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
-import { randomBytes, randomInt, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
+import { randomBytes, randomInt, timingSafeEqual, createHash } from 'node:crypto';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,14 +37,15 @@ export function createApp(options = {}) {
   function session(req, role = 'user') {
     const token = cookie(req, role === 'admin' ? 'bloom_admin' : 'bloom_session');
     const s = db.prepare('SELECT * FROM sessions WHERE token=? AND role=? AND expires>?').get(hash(token), role, Date.now());
-    if (!s) throw fail(401, 'Bạn cần đăng nhập để tiếp tục.');
+    if (!s) throw fail(401, role === 'admin' ? 'Bạn cần đăng nhập quản trị để tiếp tục.' : 'Hãy nhập tên và giới tính để vào chơi nhé.');
     return s;
   }
   function startSession(res, userId, role = 'user') {
     const token = randomBytes(32).toString('hex');
+    const lifetime = role === 'admin' ? 7 * 86400000 : 365 * 86400000;
     db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
-    db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(hash(token), userId, role, Date.now() + 7 * 86400000);
-    res.setHeader('Set-Cookie', `${role === 'admin' ? 'bloom_admin' : 'bloom_session'}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800${secure ? '; Secure' : ''}`);
+    db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(hash(token), userId, role, Date.now() + lifetime);
+    res.setHeader('Set-Cookie', `${role === 'admin' ? 'bloom_admin' : 'bloom_session'}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${lifetime / 1000}${secure ? '; Secure' : ''}`);
   }
   function state(id) {
     const u = db.prepare('SELECT id,username,name,gender,created_at FROM users WHERE id=?').get(id);
@@ -85,30 +86,20 @@ export function createApp(options = {}) {
       }
       if (path === '/api/gifts' && req.method === 'GET') return json(gifts);
       if (path === '/api/me' && req.method === 'GET') return json(state(session(req).user_id));
-      if (path === '/api/register' && req.method === 'POST') {
-        limited(req, 'auth');
-        const b = await body(req), username = String(b.username || '').trim().toLowerCase(), name = String(b.name || '').trim();
-        if (!/^[a-z0-9_.-]{3,32}$/.test(username)) throw fail(400, 'Tên đăng nhập gồm 3–32 ký tự: chữ không dấu, số, dấu . _ -');
-        if (!name || name.length > 80) throw fail(400, 'Hãy nhập tên của bạn (tối đa 80 ký tự).');
+      if (path === '/api/join' && req.method === 'POST') {
+        limited(req, 'join');
+        const b = await body(req);
+        // Re-entry in this browser always resumes the same record and its spent turns.
+        const existing = db.prepare('SELECT user_id FROM sessions WHERE token=? AND role=? AND expires>?').get(hash(cookie(req, 'bloom_session')), 'user', Date.now());
+        if (existing) return json(state(existing.user_id));
+        if (typeof b.name !== 'string') throw fail(400, 'Hãy nhập tên mà người tổ chức nhận ra được.');
+        const name = b.name.normalize('NFC').trim().replace(/\s+/g, ' ');
+        if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/.test(name)) throw fail(400, 'Hãy nhập tên của bạn (tối đa 80 ký tự).');
         if (!['female', 'male'].includes(b.gender)) throw fail(400, 'Hãy chọn giới tính.');
-        if (typeof b.password !== 'string' || b.password.length < 8 || b.password.length > 128) throw fail(400, 'Mật khẩu cần từ 8 đến 128 ký tự.');
-        const salt = randomBytes(16).toString('hex'), password = scryptSync(b.password, salt, 64).toString('hex');
-        let result;
-        try { result = db.prepare('INSERT INTO users(username,name,gender,salt,password) VALUES(?,?,?,?,?)').run(username, name, b.gender, salt, password); }
-        catch (e) { if (e.message.includes('UNIQUE')) throw fail(409, 'Tên đăng nhập này đã được dùng.'); throw e; }
+        // Keep legacy NOT NULL columns to preserve previously saved players and results.
+        // These internal IDs are not usernames; visitors do not create credentials.
+        const result = db.prepare('INSERT INTO users(username,name,gender,salt,password) VALUES(?,?,?,?,?)').run('guest:' + randomBytes(16).toString('hex'), name, b.gender, '', '');
         const id = Number(result.lastInsertRowid); startSession(res, id); return json(state(id), 201);
-      }
-      if (path === '/api/login' && req.method === 'POST') {
-        limited(req, 'auth'); const b = await body(req);
-        if (typeof b.password !== 'string' || b.password.length > 128) throw fail(400, 'Thông tin đăng nhập không hợp lệ.');
-        const u = db.prepare('SELECT * FROM users WHERE username=?').get(String(b.username || '').trim().toLowerCase());
-        const candidate = scryptSync(b.password, u?.salt || 'dummy-salt', 64).toString('hex');
-        if (!u || !same(candidate, u.password)) throw fail(401, 'Tên đăng nhập hoặc mật khẩu chưa đúng.');
-        startSession(res, u.id); return json(state(u.id));
-      }
-      if (path === '/api/logout' && req.method === 'POST') {
-        db.prepare('DELETE FROM sessions WHERE token=?').run(hash(cookie(req, 'bloom_session')));
-        res.setHeader('Set-Cookie', `bloom_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`); return json({ ok: true });
       }
       if (path === '/api/spin' && req.method === 'POST') {
         const id = eligible(req); await body(req);
