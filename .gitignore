@@ -13,3 +13,4 @@ data/
 .deployment/
 dist-pages/
 .env.*.local
+supabase/.temp/
