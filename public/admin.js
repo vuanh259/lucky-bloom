@@ -1,9 +1,6 @@
 const $ = id => document.getElementById(id);
 let players = [];
-async function api(path, body) {
-  const r = await fetch('/api/admin/' + path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const result = await r.json(); if (!r.ok) { const e = new Error(result.error); e.status = r.status; throw e; } return result;
-}
+async function api(path,body) { return LuckyBloom.request('admin/'+path,body); }
 function date(value) { return new Date(value.replace(' ', 'T') + 'Z').toLocaleString('vi-VN', { timeZone: 'Asia/Bangkok' }); }
 function chosen(p) { return p.spins.find(s => s.id === p.choice?.spin_id)?.gift; }
 function render() {
@@ -61,7 +58,14 @@ function receivingCell(p) {
   if (!f) { td.textContent = p.choice ? 'Chưa gửi thông tin nhận' : '—'; return td; }
   const text = document.createElement('div');
   text.textContent = f.mode === 'gift' ? `🎁 Nhận quà\nSĐT: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Quy đổi: ${new Intl.NumberFormat('vi-VN').format(f.cashAmount)} đ\n` + (f.method === 'bank' ? `${f.bank}\nSTK: ${f.account}\nChủ TK: ${f.holder}` : 'Nhận bằng mã QR'); td.append(text);
-  if (f.hasQr) { const a = document.createElement('a'); a.href = '/api/qr?userId=' + p.id; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Xem ảnh QR ↗'; td.append(a); }
+  if (f.hasQr) {
+    const a=document.createElement('button');a.className='text-button';a.textContent='Xem ảnh QR ↗';
+    a.onclick=async()=>{
+      const dialog=document.createElement('dialog');dialog.className='cute-dialog';const close=document.createElement('button');close.className='outline-button';close.textContent='Đóng';const img=document.createElement('img');img.className='qr-preview';img.alt='Đang tải QR riêng tư';dialog.append(close,img);document.body.append(dialog);dialog.showModal();
+      const cleanup=()=>{if(img.src.startsWith('blob:'))URL.revokeObjectURL(img.src);dialog.remove();};close.onclick=()=>dialog.close();dialog.onclose=cleanup;
+      try{const url=await LuckyBloom.qr(p.id,true);if(dialog.isConnected)img.src=url;else if(url.startsWith('blob:'))URL.revokeObjectURL(url);}catch(e){img.alt=e.message;}
+    };td.append(a);
+  }
   const time = document.createElement('small'); time.textContent = 'Gửi: ' + date(f.created_at); td.append(time); return td;
 }
 

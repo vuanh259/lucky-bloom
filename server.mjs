@@ -82,6 +82,7 @@ export function createApp(options = {}) {
     ['/wheel', ['index.html', 'text/html; charset=utf-8']], ['/prizes', ['index.html', 'text/html; charset=utf-8']],
     ['/', ['index.html', 'text/html; charset=utf-8']], ['/bai-anh-em', ['index.html', 'text/html; charset=utf-8']],
     ['/admin', ['admin.html', 'text/html; charset=utf-8']], ['/style.css', ['style.css', 'text/css; charset=utf-8']],
+    ['/api-client.js',['api-client.js','text/javascript; charset=utf-8']],['/config.js',['config.js','text/javascript; charset=utf-8']],
     ['/app.js', ['app.js', 'text/javascript; charset=utf-8']], ['/admin.js', ['admin.js', 'text/javascript; charset=utf-8']]
   ]);
   const server = http.createServer(async (req, res) => {

@@ -54,7 +54,7 @@ export function setupFulfillment(db, gifts) {
         const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(b.qrData);
         if (!match || match[2].length % 4 !== 0) throw error('Chỉ nhận ảnh PNG, JPEG hoặc WebP.');
         qr = Buffer.from(match[2], 'base64'); qrMime = match[1];
-        if (!qr.length || qr.length > 2 * 1024 * 1024) throw error('Ảnh QR phải nhỏ hơn hoặc bằng 2 MB.');
+        if (!qr.length || qr.length > 1 * 1024 * 1024) throw error('Ảnh QR phải nhỏ hơn hoặc bằng 1 MB.');
         const valid = qrMime === 'image/png' ? qr.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) && qr.length >= 24 : qrMime === 'image/jpeg' ? qr[0] === 255 && qr[1] === 216 && qr[2] === 255 && qr.length >= 20 : qr.subarray(0,4).toString() === 'RIFF' && qr.subarray(8,12).toString() === 'WEBP';
         if (!valid) throw error('Nội dung tệp không phải ảnh hợp lệ. Hãy chọn lại ảnh QR.');
       } else throw error('Hãy chọn nhập tài khoản hoặc tải mã QR.');

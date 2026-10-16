@@ -1,0 +1,5 @@
+project_id = "lucky-bloom"
+
+# The function authenticates custom opaque player/admin sessions itself.
+[functions.lucky-bloom]
+verify_jwt = false

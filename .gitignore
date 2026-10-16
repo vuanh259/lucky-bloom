@@ -4,3 +4,12 @@ data/
 *.sqlite*
 *.log
 .DS_Store
+
+.wrangler/
+.cloudflare/
+.dev.vars
+.dev.vars.*
+
+.deployment/
+dist-pages/
+.env.*.local

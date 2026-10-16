@@ -1,12 +1,7 @@
 const $ = id => document.getElementById(id);
 let gifts = [], user = null, selected = null, spinning = false, rotation = 0;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-async function api(path, data) {
-  const res = await fetch('/api/' + path, data === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-  const value = await res.json();
-  if (!res.ok) throw new Error(value.error || 'Có lỗi kết nối.');
-  return value;
-}
+async function api(path,data) { return LuckyBloom.request(path,data); }
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 4500); }
 function drawWheel() {
   const canvas = $('wheel'), ctx = canvas.getContext('2d'), size = canvas.width, c = size / 2, r = c - 4, arc = Math.PI * 2 / gifts.length;
@@ -24,8 +19,8 @@ function drawWheel() {
 function render() {
   $('welcome').hidden = false; $('play').hidden = !user; $('account').replaceChildren();
   const male = user?.gender === 'male'; $('bye').hidden = !male;
-  if (male && location.pathname !== '/bai-anh-em') history.replaceState({}, '', '/bai-anh-em');
-  if (!male && location.pathname === '/bai-anh-em') history.replaceState({}, '', '/');
+  if (male && LuckyBloom.path() !== '/bai-anh-em') LuckyBloom.navigate('/bai-anh-em',true);
+  if (!male && LuckyBloom.path() === '/bai-anh-em') LuckyBloom.navigate('/',true);
   renderPages();
   if (!user) return;
   const name = document.createElement('span'); name.textContent = '♡ ' + user.name;
@@ -113,9 +108,8 @@ async function init() {
     gifts = await api('gifts'); drawWheel();
     structure = await api('prizes');
     for (const prize of structure) { const option=document.createElement('option'); option.value=prize.id; option.textContent=prize.label; $('prizes-filter').append(option); }
-    prizePage=Number(new URLSearchParams(location.search).get('page'))||1;
-    const res = await fetch('/api/me');
-    if (res.ok) user = await res.json(); else if (res.status !== 401) throw new Error('Chưa tải được lượt chơi. Hãy tải lại trang.');
+    prizePage=Number(new URLSearchParams(LuckyBloom.search()).get('page'))||1;
+    try { user=await api('me'); } catch(e) { if(e.status!==401)throw e; }
     render();
   } catch (e) { $('auth-error').textContent = e.message || 'Chưa kết nối được máy chủ. Hãy tải lại trang.'; $('auth-submit').disabled = true; }
 }
@@ -138,7 +132,7 @@ function renderReceiving() {
   const detail = document.createElement('p');
   detail.textContent = f.redacted ? (f.mode === 'gift' ? '🎁 Bạn đã chọn nhận quà. Thông tin nhận đã được lưu riêng tư.' : '💸 Bạn đã chọn nhận giá trị tương đương: ' + money(f.cashAmount)) : f.mode === 'gift' ? `🎁 Nhận quà\nĐiện thoại: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Nhận giá trị tương đương: ${money(f.cashAmount)}\n` + (f.method === 'bank' ? `Ngân hàng: ${f.bank}\nSố tài khoản: ${f.account}\nChủ tài khoản: ${f.holder}` : 'Nhận qua mã QR bạn đã tải lên.');
   $('receive-summary').append(h, detail);
-  if (f.hasQr) { const img = document.createElement('img'); img.className = 'qr-preview'; img.src = '/api/qr'; img.alt = 'QR nhận tiền đã gửi'; $('receive-summary').append(img); }
+  if (f.hasQr) { const img = document.createElement('img'); img.className = 'qr-preview'; LuckyBloom.qr().then(url=>{if(img.isConnected)img.src=url;else if(url.startsWith('blob:'))URL.revokeObjectURL(url);}).catch(()=>{img.alt='Không tải được QR. Hãy thử lại.';}); img.alt = 'QR nhận tiền đã gửi'; $('receive-summary').append(img); }
   const note = document.createElement('p'); note.textContent = 'Người tổ chức đã nhận được thông tin. Nếu cần sửa, hãy liên hệ người tổ chức nhé.'; $('receive-summary').append(note);
 }
 function syncReceiving() {
@@ -153,7 +147,7 @@ $('receiving-form').onchange = syncReceiving;
 $('receive-qr').onchange = async () => {
   qrData = null; $('qr-preview').hidden = true; $('qr-preview').removeAttribute('src'); $('receive-error').textContent = '';
   const file = $('receive-qr').files[0]; if (!file) return;
-  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) { $('receive-error').textContent = 'Chọn ảnh PNG, JPEG hoặc WebP, tối đa 2 MB.'; $('receive-qr').value = ''; return; }
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1 * 1024 * 1024) { $('receive-error').textContent = 'Chọn ảnh PNG, JPEG hoặc WebP, tối đa 1 MB.'; $('receive-qr').value = ''; return; }
   try {
     const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Không đọc được ảnh. Hãy chọn lại.')); reader.readAsDataURL(file); });
     if ($('receive-qr').files[0] !== file) return;
@@ -181,7 +175,7 @@ let structure = [], prizePage = 1;
 const pageSize = 4;
 function navigate(path) {
   if(path.startsWith('/prizes')) prizePage=Number(new URL(path,location.origin).searchParams.get('page'))||1;
-  history.pushState({},'',path); render(); window.scrollTo({top:0,behavior:reduceMotion?'instant':'smooth'});
+  LuckyBloom.navigate(path); render(); window.scrollTo({top:0,behavior:reduceMotion?'instant':'smooth'});
 }
 function openReceiving() {
   if (!user?.choice) return;
@@ -193,8 +187,8 @@ function openCelebration() {
   if (!$('wish-dialog').open) $('wish-dialog').showModal();
 }
 function renderPages() {
-  let path = location.pathname;
-  if (path === '/wheel' && !user) { history.replaceState({},'','/'); path='/'; }
+  let path = LuckyBloom.path();
+  if (path === '/wheel' && !user) { LuckyBloom.navigate('/',true); path='/'; }
   $('entry-page').hidden = path !== '/';
   $('wheel-page').hidden = path !== '/wheel';
   $('prizes-page').hidden = path !== '/prizes';
@@ -227,9 +221,9 @@ document.addEventListener('click',event=>{
   const link=event.target.closest('[data-page]'); if(!link)return;
   event.preventDefault(); navigate(link.dataset.page);
 });
-window.addEventListener('popstate',()=>{prizePage=Number(new URLSearchParams(location.search).get('page'))||1;render();});
+window.addEventListener('popstate',()=>{prizePage=Number(new URLSearchParams(LuckyBloom.search()).get('page'))||1;render();});
 $('prizes-filter').onchange=()=>{prizePage=1;renderPrizes();};
-function changePrizePage(delta) { prizePage+=delta; history.replaceState({},'',`/prizes?page=${prizePage}`); renderPrizes(); }
+function changePrizePage(delta) { prizePage+=delta; LuckyBloom.navigate(`/prizes?page=${prizePage}`,true); renderPrizes(); }
 $('prizes-prev').onclick=()=>changePrizePage(-1); $('prizes-next').onclick=()=>changePrizePage(1);
 $('prizes-back').onclick=()=>navigate(user?.gender==='female'?'/wheel':'/');
 $('open-receiving').onclick=openReceiving; $('open-wish').onclick=openCelebration;

@@ -1,3 +1,5 @@
+> **Deploy miễn phí: GitHub Pages + Supabase.** Đọc [SUPABASE-DEPLOY.md](SUPABASE-DEPLOY.md), điền `.env` (đã tạo sẵn), chạy migration và deploy theo hướng dẫn. Bản Node.js/SQLite dưới đây vẫn dùng để chạy local. Dữ liệu local không tự chuyển lên Supabase.
+
 # 🌸 Lucky Bloom
 
 Web vòng quay may mắn bằng tiếng Việt, giao diện pastel cute, chạy bằng **Node.js 22 + SQLite**, không cần cài thư viện ngoài.
@@ -30,7 +32,7 @@ npm start
 - Người chơi: http://127.0.0.1:3000
 - Quản trị: http://127.0.0.1:3000/admin
 
-Không cần `npm install`. Dừng bằng Ctrl+C. Dữ liệu mặc định nằm trong `data/lucky-bloom.sqlite` (không được Git theo dõi).
+Chạy local không cần thư viện runtime. Khi kiểm thử hoặc triển khai, chạy `npm ci` để cài dev dependencies. Dừng bằng Ctrl+C. Dữ liệu mặc định nằm trong `data/lucky-bloom.sqlite` (không được Git theo dõi).
 
 ## Đổi danh sách quà
 
@@ -83,7 +85,7 @@ Hồ sơ, lượt quay và quà đã chốt từ bản trước được giữ n
 
 ## Nhận quà hoặc nhận giá trị tương đương
 
-Sau khi chốt một món, người chơi chọn nhận quà (số điện thoại Việt Nam và địa chỉ) hoặc giá trị tương đương. Người tổ chức đặt số tiền cho từng món ngay trong /admin; món chưa cấu hình chỉ nhận quà. Người chơi nhận tiền nhập ngân hàng + số tài khoản + tên chủ tài khoản, hoặc tải ảnh QR PNG/JPEG/WebP tối đa 2 MB. Ứng dụng lưu ảnh, không tự đọc/xác minh mã QR và không tự chuyển tiền.
+Sau khi chốt một món, người chơi chọn nhận quà (số điện thoại Việt Nam và địa chỉ) hoặc giá trị tương đương. Người tổ chức đặt số tiền cho từng món ngay trong /admin; món chưa cấu hình chỉ nhận quà. Người chơi nhận tiền nhập ngân hàng + số tài khoản + tên chủ tài khoản, hoặc tải ảnh QR PNG/JPEG/WebP tối đa 1 MB. Ứng dụng lưu ảnh, không tự đọc/xác minh mã QR và không tự chuyển tiền.
 
 Thông tin nhận được lưu một lần, gắn với món đã chốt; số tiền được kiểm tra trên máy chủ và giữ nguyên khi thay đổi cấu hình sau này. Lựa chọn cũ vẫn có thể bổ sung thông tin nhận. Quản trị xem thông tin nhận, mở ảnh QR và xuất CSV. Ảnh nằm trong SQLite, chỉ người gửi hoặc quản trị được xem, không nằm trong public/ và không đưa lên GitHub. Sao lưu như cơ sở dữ liệu hiện tại.
 

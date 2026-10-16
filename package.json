@@ -1,6 +1,21 @@
 {
-  "name": "lucky-bloom", "version": "1.0.0", "private": true, "type": "module",
+  "name": "lucky-bloom",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
   "description": "Vòng quay may mắn cute: nhập tên, 3 lượt quay, chọn quà và trang quản trị.",
-  "engines": { "node": ">=22.13.0" },
-  "scripts": { "start": "node --env-file-if-exists=.env server.mjs", "test": "node --test", "check": "node --check server.mjs && node --check fulfillment.mjs && node --check public/app.js && node --check public/admin.js" }
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test",
+    "check": "node --check server.mjs && node --check fulfillment.mjs && node --check public/app.js && node --check public/admin.js && node --check public/api-client.js && node --check supabase/functions/lucky-bloom/handler.js && node --check scripts/build-pages.mjs && node --check scripts/deploy-supabase.mjs",
+    "build:pages": "node --env-file-if-exists=.env scripts/build-pages.mjs",
+    "deploy:supabase": "node --env-file-if-exists=.env scripts/deploy-supabase.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "supabase": "^2.121.0"
+  }
 }
