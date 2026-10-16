@@ -36,18 +36,19 @@ function render() {
   for (let i = 0; i < 3; i++) { const el = document.createElement('div'); el.className = 'turn-chip' + (i < user.spins.length ? ' used' : ''); el.textContent = i < user.spins.length ? '✓ Lượt ' + (i + 1) : '✧ Lượt ' + (i + 1); $('turns').append(el); }
   $('spin').hidden = !user.remaining || user.readOnly; $('spin').disabled = spinning;
   $('result-count').textContent = `${user.spins.length} / 3`;
-  $('selection-hint').textContent = user.choice ? 'Món quà đã chốt được lưu cho người tổ chức.' : user.remaining ? 'Quay đủ 3 lượt rồi chọn món bạn yêu nhất nhé.' : 'Chạm vào một món quà, rồi bấm chốt để xác nhận.';
+  $('selection-hint').textContent = user.choice ? user.readOnly ? 'Bạn đang xem lại món quà đã chọn.' : 'Bạn có thể chọn món khác trong 3 kết quả để đổi quà.' : user.remaining ? 'Quay đủ 3 lượt rồi chọn món bạn yêu nhất nhé.' : 'Chạm vào một món quà, rồi bấm chốt để xác nhận.';
   $('results').replaceChildren();
   if (!user.spins.length) { const empty = document.createElement('div'); empty.className = 'empty-gift'; empty.textContent = '🎁 Giỏ quà đang chờ vòng quay đầu tiên'; $('results').append(empty); }
   user.spins.forEach(spin => {
-    const isSelected = user.choice ? user.choice.spin_id === spin.id : selected === spin.id;
-    const button = document.createElement('button'); button.className = 'gift-option' + (isSelected ? ' selected' : ''); button.disabled = !!user.choice || !!user.remaining || spinning || user.readOnly; button.setAttribute('aria-pressed', String(isSelected));
+    const isSelected = (selected ?? user.choice?.spin_id) === spin.id;
+    const button = document.createElement('button'); button.className = 'gift-option' + (isSelected ? ' selected' : ''); button.disabled = !!user.remaining || spinning || user.readOnly; button.setAttribute('aria-pressed', String(isSelected));
     const icon = document.createElement('span'); icon.className = 'gift-icon'; icon.textContent = spin.gift.emoji;
     const text = document.createElement('span'), title = document.createElement('strong'), sub = document.createElement('small'); title.textContent = spin.gift.name; sub.textContent = 'Kết quả lượt ' + spin.turn; text.append(title, sub);
     const check = document.createElement('span'); check.className = 'check'; check.textContent = isSelected ? '♥' : '○'; button.append(icon, text, check);
     button.onclick = () => { selected = spin.id; render(); }; $('results').append(button);
   });
-  $('confirm-gift').hidden = !!user.choice || !!user.remaining || user.readOnly; $('confirm-gift').disabled = !selected || spinning;
+  $('confirm-gift').hidden = !!user.remaining || user.readOnly; $('confirm-gift').disabled = !selected || selected === user.choice?.spin_id || spinning;
+  $('confirm-gift').textContent = user.choice ? 'Xác nhận đổi quà ♡' : 'Chốt món quà này ♡';
   $('chosen').hidden = !user.choice;
   if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = user.fulfillment ? 'Đã chốt quà và gửi thông tin nhận ♡' : 'Đã chốt quà! Bấm Cách nhận quà để hoàn tất nhé ♡'; $('chosen').append(b, p); }
   renderReceiving();
@@ -83,13 +84,29 @@ $('spin').onclick = async () => {
     try { user = await api('me'); } catch { /* The error above remains visible. */ }
   } finally { spinning = false; $('spin').textContent = 'Quay nào! ✧'; render(); }
 };
-$('confirm-gift').onclick = async () => {
-  if (!selected || spinning) return;
-  const gift = user.spins.find(s => s.id === selected).gift;
-  if (!confirm(`Bạn chốt ${gift.name} nhé? Sau khi chốt sẽ không đổi được.`)) return;
-  $('confirm-gift').disabled = true; $('play-error').textContent = '';
-  try { user = await api('choose', { spinId: selected }); render(); openReceiving(); toast('Đã lưu món quà bạn chọn ♡'); }
-  catch (e) { $('play-error').textContent = e.message; try { user = await api('me'); } catch {} render(); }
+let pendingGift = null;
+$('confirm-gift').onclick = () => {
+  if (!selected || spinning || user.readOnly || selected === user.choice?.spin_id) return;
+  pendingGift = selected;
+  const gift = user.spins.find(s => s.id === pendingGift).gift;
+  $('gift-confirm-title').textContent = user.choice ? 'Xác nhận đổi quà' : 'Xác nhận chọn quà';
+  $('gift-confirm-name').textContent = gift.emoji + ' ' + gift.name;
+  $('gift-confirm-note').textContent = user.choice ? 'Bạn muốn đổi sang món này? Thông tin nhận quà hoặc chuyển khoản đã gửi trước đó sẽ được xóa; bạn cần xác nhận lại cách nhận cho món mới.' : 'Bạn chọn món quà này nhé? Sau khi xác nhận, hãy điền cách nhận trong popup tiếp theo. Bạn vẫn có thể đổi sang món khác trong 3 kết quả.';
+  $('gift-confirm-error').textContent = ''; $('gift-confirm-dialog').showModal();
+};
+function cancelGift() { pendingGift = null; selected = null; render(); }
+$('gift-confirm-cancel').onclick = () => { $('gift-confirm-dialog').close(); cancelGift(); };
+$('gift-confirm-dialog').addEventListener('cancel', event => { if ($('gift-confirm-save').disabled) event.preventDefault(); else cancelGift(); });
+$('gift-confirm-save').onclick = async () => {
+  if (!pendingGift || $('gift-confirm-save').disabled) return;
+  $('gift-confirm-save').disabled = true; $('gift-confirm-cancel').disabled = true;
+  try {
+    user = await api('choose', { spinId: pendingGift }); selected = null; pendingGift = null;
+    $('gift-confirm-dialog').close();
+    $('receiving-form').reset(); qrData = null; $('qr-preview').hidden = true; $('qr-preview').removeAttribute('src'); $('receive-error').textContent = '';
+    render(); openReceiving(); toast('Đã lưu món quà bạn chọn ♡');
+  } catch(e) { $('gift-confirm-error').textContent = e.message; }
+  finally { $('gift-confirm-save').disabled = false; $('gift-confirm-cancel').disabled = false; }
 };
 async function init() {
   try {
@@ -147,6 +164,7 @@ $('receiving-form').onsubmit = async event => {
   event.preventDefault(); $('receive-error').textContent = ''; $('receive-submit').disabled = true;
   try {
     const data = Object.fromEntries(new FormData(event.currentTarget));
+    data.expectedSpinId = user.choice.spin_id;
     if (data.mode === 'cash') {
       data.expectedAmount = user.spins.find(s => s.id === user.choice.spin_id).gift.cashValue;
       if (data.method === 'qr') { if (!qrData) throw new Error('Hãy chờ ảnh QR tải xong hoặc chọn lại ảnh.'); data.qrData = qrData; }

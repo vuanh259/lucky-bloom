@@ -8,7 +8,7 @@ Web vòng quay may mắn bằng tiếng Việt, giao diện pastel cute, chạy 
 - Chọn **Nam**: vẫn lưu hồ sơ, chuyển đến `/bai-anh-em` có dòng **“bai anh em”**. Máy chủ chặn quyền quay/chọn quà.
 - Chọn **Nữ**: vào vòng quay, **3 lượt mỗi phiên người chơi trên trình duyệt**. Tải lại trang hoặc mở lại cùng trình duyệt vẫn giữ số lượt; cookie nhận diện tồn tại tối đa 365 ngày.
 - Kết quả được sinh ngẫu nhiên và lưu ở máy chủ trước khi chạy hiệu ứng. Gửi đồng thời nhiều yêu cầu vẫn chỉ có tối đa 3 lượt.
-- Sau đủ 3 lượt, chọn **1 món từ chính 3 kết quả đó**, xác nhận rồi lưu cố định.
+- Sau đủ 3 lượt, chọn **1 món từ chính 3 kết quả đó**, xác nhận bằng popup; có thể đổi trong 3 kết quả.
 - `/admin`: mật khẩu quản trị riêng; xem tên, mã người chơi, giới tính, từng lượt, món chốt và thời gian; tìm kiếm và xuất CSV cho Excel.
 - Lưu tập trung bằng SQLite; hồ sơ và lượt quay tồn tại sau khi khởi động lại máy chủ.
 - Giao diện responsive, hỗ trợ giảm chuyển động theo thiết lập thiết bị; không dùng tài nguyên bên thứ ba.
@@ -56,7 +56,7 @@ npm run check
 npm test
 ```
 
-Kiểm thử bao gồm giới hạn 3 lượt khi gọi đồng thời, chọn quà thuộc tài khoản, không được đổi quà đã chốt, phân quyền nam/nữ và quản trị, CSRF, vào lại bằng cookie và giữ dữ liệu khi restart. GitHub Actions chạy các kiểm tra này trên push/PR.
+Kiểm thử bao gồm giới hạn 3 lượt khi gọi đồng thời, chọn quà thuộc tài khoản, đổi quà và đặt lại thông tin nhận đúng món mới, phân quyền nam/nữ và quản trị, CSRF, vào lại bằng cookie và giữ dữ liệu khi restart. GitHub Actions chạy các kiểm tra này trên push/PR.
 
 ## Giới hạn và vận hành
 
@@ -98,3 +98,7 @@ Bảng xếp hạng công khai thống kê theo loại giải: giá trị quy đ
 Trang / nhập tên, giới tính và xem cơ cấu giải; /wheel dành cho vòng quay; /prizes có danh mục giải phân trang (4 món/trang). Không hiển thị số người đã trúng hay giá trị quy đổi ở trang vào. Số lượng cơ cấu sửa trong /admin là số công bố dự kiến, không phải hệ thống tồn kho hay hạn mức phát quà tự động.
 
 Chốt quà mở hộp thoại cách nhận; gửi xong mở lời chúc 20/10, có nút xem lại. Nhập lại tên và giới tính sẽ tìm hồ sơ cũ (bỏ khoảng trắng dư, không phân biệt hoa/thường, vẫn phân biệt dấu). Nếu có nhiều hồ sơ trùng tên, ưu tiên hồ sơ đã chốt gần nhất. Cùng cookie gốc được tiếp tục và xem đủ dữ liệu; trình duyệt khác chỉ xem lại kết quả/cách nhận tổng quát/lời chúc, không xem địa chỉ, SĐT, ngân hàng, QR hoặc sửa dữ liệu. Tên không phải bằng chứng sở hữu; cần liên hệ người tổ chức nếu mất cookie và chưa hoàn tất.
+
+## Đổi món quà
+
+Trên trình duyệt sở hữu phiên chơi, có thể chọn lại một trong 3 kết quả, bấm Xác nhận đổi quà rồi xác nhận ở popup. Đổi sang kết quả khác sẽ xóa thông tin nhận/QR cũ trong cùng giao dịch và yêu cầu gửi lại cách nhận. Xác nhận lại đúng kết quả cũ giữ nguyên thông tin. Không được thêm lượt quay hay chọn kết quả của người khác. Phiên xem lại chỉ bằng tên/giới tính vẫn không có quyền đổi.

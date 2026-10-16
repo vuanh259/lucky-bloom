@@ -38,11 +38,11 @@ test('name-only entry gets exactly 3 turns under concurrency and resumes without
   for (let i = 0; i < 3; i++) await outsider('spin', {});
   assert.equal((await outsider('choose', { spinId: state.spins[0].id })).status, 400);
   assert.equal((await api('choose', { spinId: state.spins[1].id })).status, 200);
-  assert.equal((await api('choose', { spinId: state.spins[2].id })).status, 409);
+  assert.equal((await api('choose', { spinId: state.spins[2].id })).status, 200);
   const resumed = await register(api, '  LINH dễ thương ', 'female');
   assert.equal(resumed.status, 200); assert.equal(resumed.data.name, 'Linh dễ thương');
   assert.equal(resumed.data.gender, 'female');
-  assert.equal(resumed.data.remaining, 0); assert.equal(resumed.data.choice.spin_id, state.spins[1].id);
+  assert.equal(resumed.data.remaining, 0); assert.equal(resumed.data.choice.spin_id, state.spins[2].id);
   const sameBrowser = client(server, api.cookie);
   assert.equal((await sameBrowser('me')).data.remaining, 0);
   assert.equal((await api('spin', {})).status, 409);
@@ -230,4 +230,25 @@ test('public prize structure has quantities only; only admin can configure it; p
     assert.ok(html.includes('wish-dialog')); assert.ok(html.includes('receive-dialog'));
     assert.ok(!html.includes('leaderboard-section'));
   }
+});
+
+test('changing gift resets receiving details, keeps 3 turns, rejects stale receipt and preserves same-choice submissions', async t => {
+  const server = await serve(t), owner = client(server), outsider = client(server), admin = client(server);
+  const p = await completeSpins(owner); await setValues(admin);
+  const qrData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=';
+  await owner('fulfillment',{mode:'cash',method:'qr',qrData,expectedAmount:50000,expectedSpinId:p.spins[0].id});
+  const again=await owner('choose',{spinId:p.spins[0].id});
+  assert.equal(again.status,200); assert.equal(again.data.fulfillment.hasQr,true);
+  await register(outsider,'Người khác');
+  for(let i=0;i<3;i++) await outsider('spin',{});
+  const other=(await outsider('me')).data;
+  assert.equal((await owner('choose',{spinId:other.spins[0].id})).status,400);
+  assert.equal((await owner('me')).data.fulfillment.hasQr,true);
+  const changed=await owner('choose',{spinId:p.spins[1].id});
+  assert.equal(changed.status,200); assert.equal(changed.data.choice.spin_id,p.spins[1].id);
+  assert.equal(changed.data.fulfillment,null); assert.equal(changed.data.remaining,0);
+  assert.equal(changed.data.spins.length,3); assert.equal((await owner('qr')).status,404);
+  assert.equal((await owner('fulfillment',{mode:'gift',phone:'0900000000',address:'Địa chỉ kiểm thử, không giao quà',expectedSpinId:p.spins[0].id})).status,409);
+  assert.equal((await owner('fulfillment',{mode:'gift',phone:'0900000000',address:'Địa chỉ kiểm thử, không giao quà',expectedSpinId:p.spins[1].id})).status,200);
+  assert.equal((await admin('admin/players')).data.find(row=>row.id===p.id).choice.spin_id,p.spins[1].id);
 });

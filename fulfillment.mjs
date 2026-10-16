@@ -31,8 +31,9 @@ export function setupFulfillment(db, gifts) {
     return catalog();
   }
   function save(id, b) {
-    const choice = db.prepare('SELECT s.gift FROM choices c JOIN spins s ON c.spin_id=s.id WHERE c.user_id=?').get(id);
+    const choice = db.prepare('SELECT c.spin_id,s.gift FROM choices c JOIN spins s ON c.spin_id=s.id WHERE c.user_id=?').get(id);
     if (!choice) throw error('Hãy chốt món quà trước khi điền thông tin nhận.');
+    if (b.expectedSpinId !== undefined && b.expectedSpinId !== choice.spin_id) throw Object.assign(new Error('Món quà đã thay đổi. Hãy tải lại trang và xác nhận thông tin nhận cho món mới.'), { status: 409 });
     if (record(id)) throw Object.assign(new Error('Thông tin nhận đã được gửi. Liên hệ người tổ chức nếu cần sửa.'), { status: 409 });
     const details = {}, mode = b.mode;
     let cashAmount = null, qr = null, qrMime = null;

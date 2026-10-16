@@ -186,10 +186,15 @@ export function createApp(options = {}) {
         db.exec('BEGIN IMMEDIATE');
         try {
           if (db.prepare('SELECT COUNT(*) AS n FROM spins WHERE user_id=?').get(id).n !== 3) throw fail(409, 'Hãy quay đủ 3 lượt trước khi chọn quà nhé.');
-          if (db.prepare('SELECT 1 FROM choices WHERE user_id=?').get(id)) throw fail(409, 'Bạn đã chốt quà rồi.');
+          const previous = db.prepare('SELECT spin_id FROM choices WHERE user_id=?').get(id);
           const spin = db.prepare('SELECT id FROM spins WHERE id=? AND user_id=?').get(Number(b.spinId) || 0, id);
           if (!spin) throw fail(400, 'Hãy chọn một món quà từ 3 lượt của bạn.');
-          db.prepare('INSERT INTO choices(user_id,spin_id) VALUES(?,?)').run(id, spin.id); db.exec('COMMIT');
+          if (!previous || previous.spin_id !== spin.id) {
+            // Confirmed gift changes invalidate receiving details, including the old QR and cash amount.
+            db.prepare('DELETE FROM fulfillment WHERE user_id=?').run(id);
+            db.prepare('INSERT INTO choices(user_id,spin_id) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET spin_id=excluded.spin_id,created_at=CURRENT_TIMESTAMP').run(id, spin.id);
+          }
+          db.exec('COMMIT');
         } catch (e) { db.exec('ROLLBACK'); throw e; }
         return json(state(id));
       }
