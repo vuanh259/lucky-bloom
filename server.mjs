@@ -22,6 +22,17 @@ export function createApp(options = {}) {
   const gifts = JSON.parse(readFileSync(join(root, 'gifts.json'), 'utf8'));
   if (!Array.isArray(gifts) || gifts.length < 2 || gifts.length > 12 || gifts.some(g => !g.id || !g.name || !/^#[0-9a-f]{6}$/i.test(g.color))) throw new Error('gifts.json không hợp lệ');
   const receiving = setupFulfillment(db, gifts);
+  db.exec('CREATE TABLE IF NOT EXISTS prize_structure(id TEXT PRIMARY KEY, label TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>=0))');
+  const defaultPrizes = [['special','Giải đặc biệt',2],['first','Giải nhất',3],['second','Giải nhì',5],['third','Giải ba',10],['encourage','Giải khuyến khích',20]];
+  for (const prize of defaultPrizes) db.prepare('INSERT OR IGNORE INTO prize_structure VALUES(?,?,?)').run(...prize);
+  const tierByGift = { surprise:'special', bear:'first', lipstick:'second', flowers:'third', cake:'encourage', tea:'encourage' };
+  function prizeStructure() { return defaultPrizes.map(([id]) => db.prepare('SELECT * FROM prize_structure WHERE id=?').get(id)); }
+  const nameKey = name => name.normalize('NFC').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi-VN');
+  function viewState(req) {
+    let current;
+    try { current = session(req); } catch { current = session(req, 'review'); }
+    return state(current.user_id, current.role === 'review');
+  }
   const adminPassword = options.adminPassword ?? process.env.ADMIN_PASSWORD ?? '';
   const secure = options.secure ?? process.env.COOKIE_SECURE === 'true';
   const limits = new Map();
@@ -49,11 +60,13 @@ export function createApp(options = {}) {
     db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(hash(token), userId, role, Date.now() + lifetime);
     res.setHeader('Set-Cookie', `${role === 'admin' ? 'bloom_admin' : 'bloom_session'}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${lifetime / 1000}${secure ? '; Secure' : ''}`);
   }
-  function state(id) {
+  function state(id, readOnly = false) {
     const u = db.prepare('SELECT id,username,name,gender,created_at FROM users WHERE id=?').get(id);
     const spins = db.prepare('SELECT id,turn,gift,created_at FROM spins WHERE user_id=? ORDER BY turn').all(id).map(s => ({ ...s, gift: { ...JSON.parse(s.gift), cashValue: receiving.value(JSON.parse(s.gift).id) } }));
     const choice = db.prepare('SELECT spin_id,created_at FROM choices WHERE user_id=?').get(id) || null;
-    return { ...u, spins, choice, fulfillment: receiving.record(id), remaining: 3 - spins.length };
+    const full = receiving.record(id);
+    const fulfillment = readOnly && full ? { mode: full.mode, cashAmount: full.cashAmount, redacted: true } : full;
+    return { ...u, spins, choice, fulfillment, readOnly, remaining: 3 - spins.length };
   }
   function eligible(req) {
     const s = session(req), u = db.prepare('SELECT * FROM users WHERE id=?').get(s.user_id);
@@ -66,6 +79,7 @@ export function createApp(options = {}) {
     try { return JSON.parse(text || '{}'); } catch { throw fail(400, 'Dữ liệu không hợp lệ.'); }
   }
   const publicFiles = new Map([
+    ['/wheel', ['index.html', 'text/html; charset=utf-8']], ['/prizes', ['index.html', 'text/html; charset=utf-8']],
     ['/', ['index.html', 'text/html; charset=utf-8']], ['/bai-anh-em', ['index.html', 'text/html; charset=utf-8']],
     ['/admin', ['admin.html', 'text/html; charset=utf-8']], ['/style.css', ['style.css', 'text/css; charset=utf-8']],
     ['/app.js', ['app.js', 'text/javascript; charset=utf-8']], ['/admin.js', ['admin.js', 'text/javascript; charset=utf-8']]
@@ -86,7 +100,16 @@ export function createApp(options = {}) {
         }
         if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'Chỉ chấp nhận JSON.');
       }
-      if (path === '/api/gifts' && req.method === 'GET') return json(receiving.catalog());
+      if (path === '/api/gifts' && req.method === 'GET') return json(receiving.catalog().map(g => ({...g,tier:tierByGift[g.id] || 'encourage'})));
+      if (path === '/api/prizes' && req.method === 'GET') return json(prizeStructure());
+      if (path === '/api/admin/prizes' && req.method === 'GET') { session(req,'admin'); return json(prizeStructure()); }
+      if (path === '/api/admin/prizes' && req.method === 'POST') {
+        session(req,'admin'); const b = await body(req);
+        if (!Array.isArray(b.items) || b.items.length !== defaultPrizes.length || new Set(b.items.map(i=>i?.id)).size !== defaultPrizes.length || b.items.some(i=>!defaultPrizes.some(p=>p[0]===i?.id) || !Number.isSafeInteger(i.quantity) || i.quantity<0 || i.quantity>100000)) throw fail(400,'Số lượng mỗi giải phải là số nguyên từ 0 đến 100.000.');
+        db.exec('BEGIN IMMEDIATE');
+        try { for (const item of b.items) db.prepare('UPDATE prize_structure SET quantity=? WHERE id=?').run(item.quantity,item.id); db.exec('COMMIT'); } catch(e) { db.exec('ROLLBACK'); throw e; }
+        return json(prizeStructure());
+      }
       if (path === '/api/leaderboard' && req.method === 'GET') {
         const chosen = db.prepare('SELECT s.gift FROM choices c JOIN spins s ON s.id=c.spin_id').all().map(row => JSON.parse(row.gift).id);
         const entries = receiving.catalog().map(gift => ({ gift: { id: gift.id, name: gift.name, emoji: gift.emoji }, value: gift.cashValue || 0, count: chosen.filter(id => id === gift.id).length })).sort((a,b) => b.value-a.value);
@@ -113,24 +136,30 @@ export function createApp(options = {}) {
         res.writeHead(200, { 'Content-Type': row.qr_mime, 'Cache-Control': 'no-store', 'Content-Disposition': 'inline; filename="receive-qr.' + ({'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[row.qr_mime]) + '"' });
         return res.end(row.qr);
       }
-      if (path === '/api/me' && req.method === 'GET') return json(state(session(req).user_id));
+      if (path === '/api/me' && req.method === 'GET') return json(viewState(req));
       if (path === '/api/join' && req.method === 'POST') {
         limited(req, 'join');
         const b = await body(req);
         // Re-entry in this browser always resumes the same record and its spent turns.
         const existing = db.prepare('SELECT user_id FROM sessions WHERE token=? AND role=? AND expires>?').get(hash(cookie(req, 'bloom_session')), 'user', Date.now());
-        if (existing) return json(state(existing.user_id));
+
         if (typeof b.name !== 'string') throw fail(400, 'Hãy nhập tên mà người tổ chức nhận ra được.');
         const name = b.name.normalize('NFC').trim().replace(/\s+/g, ' ');
         if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/.test(name)) throw fail(400, 'Hãy nhập tên của bạn (tối đa 80 ký tự).');
         if (!['female', 'male'].includes(b.gender)) throw fail(400, 'Hãy chọn giới tính.');
+        const matches = db.prepare('SELECT id,name FROM users WHERE gender=? ORDER BY EXISTS(SELECT 1 FROM choices WHERE choices.user_id=users.id) DESC,id DESC').all(b.gender);
+        const match = matches.find(row => nameKey(row.name) === nameKey(name));
+        if (match) {
+          if (existing?.user_id === match.id) return json(state(match.id));
+          startSession(res,match.id,'review'); return json(state(match.id,true));
+        }
         // Keep legacy NOT NULL columns to preserve previously saved players and results.
         // These internal IDs are not usernames; visitors do not create credentials.
         const result = db.prepare('INSERT INTO users(username,name,gender,salt,password) VALUES(?,?,?,?,?)').run('guest:' + randomBytes(16).toString('hex'), name, b.gender, '', '');
         const id = Number(result.lastInsertRowid); startSession(res, id); return json(state(id), 201);
       }
       if (path === '/api/leave' && req.method === 'POST') {
-        const current = session(req);
+        let current; try { current=session(req); } catch { current=session(req,'review'); }
         const player = db.prepare('SELECT gender FROM users WHERE id=?').get(current.user_id);
         // Returning from the goodbye page preserves the saved record and never resets a spinner's turns.
         if (player.gender !== 'male') throw fail(403, 'Không thể đặt lại lượt quay.');

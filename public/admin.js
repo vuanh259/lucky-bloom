@@ -23,7 +23,7 @@ function render() {
 }
 async function load() {
   $('refresh').disabled = true;
-  try { players = await api('players'); await loadValues(); $('admin-login').hidden = true; $('dashboard').hidden = false; $('admin-logout').hidden = false; $('dashboard-error').textContent = ''; $('last-updated').textContent = 'Cập nhật: ' + new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Bangkok' }) + ' (GMT+7)'; render(); }
+  try { players = await api('players'); await loadValues(); await loadStructure(); $('admin-login').hidden = true; $('dashboard').hidden = false; $('admin-logout').hidden = false; $('dashboard-error').textContent = ''; $('last-updated').textContent = 'Cập nhật: ' + new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Bangkok' }) + ' (GMT+7)'; render(); }
   catch (e) { if (e.status === 401) { $('admin-login').hidden = false; $('dashboard').hidden = true; $('admin-logout').hidden = true; } else $('dashboard-error').textContent = e.message; }
   finally { $('refresh').disabled = false; }
 }
@@ -65,4 +65,12 @@ function receivingCell(p) {
   const time = document.createElement('small'); time.textContent = 'Gửi: ' + date(f.created_at); td.append(time); return td;
 }
 
+async function loadStructure() {
+  const items = await api('prizes'); $('structure-fields').replaceChildren();
+  for (const item of items) { const label = document.createElement('label'); label.textContent = item.label; const input = document.createElement('input'); input.type='number'; input.min='0'; input.max='100000'; input.step='1'; input.required=true; input.value=item.quantity; input.dataset.prize=item.id; label.append(input); $('structure-fields').append(label); }
+}
+$('structure-form').onsubmit = async event => {
+  event.preventDefault(); $('structure-save').disabled=true;
+  try { await api('prizes',{items:[...$('structure-fields').querySelectorAll('input')].map(input=>({id:input.dataset.prize,quantity:Number(input.value)}))}); $('structure-status').textContent='Đã lưu cơ cấu giải.'; } catch(e) { $('structure-status').textContent=e.message; } finally { $('structure-save').disabled=false; }
+};
 load();

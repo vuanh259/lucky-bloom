@@ -92,3 +92,9 @@ Thông tin nhận được lưu một lần, gắn với món đã chốt; số 
 Giá trị mặc định: Gấu bông 50.000đ, Trà sữa 10.000đ, Bó hoa 30.000đ, Bánh ngọt 20.000đ, Son xinh 40.000đ, Quà bí mật 50.000đ. Chúng là cấu hình mẫu được nạp một lần; chỉnh hoặc tắt trong quản trị vẫn được giữ sau restart.
 
 Bảng xếp hạng công khai thống kê theo loại giải: giá trị quy đổi hiện tại, số người đã chốt, lọc theo loại giải và đồng hạng khi cùng giá trị. Không công khai tên hay chi tiết người chơi; tên và lựa chọn cụ thể vẫn chỉ xem trong quản trị. Địa chỉ, điện thoại, ngân hàng và QR không có trong API bảng xếp hạng.
+
+## Phân trang và xem lại dịp 20/10
+
+Trang / nhập tên, giới tính và xem cơ cấu giải; /wheel dành cho vòng quay; /prizes có danh mục giải phân trang (4 món/trang). Không hiển thị số người đã trúng hay giá trị quy đổi ở trang vào. Số lượng cơ cấu sửa trong /admin là số công bố dự kiến, không phải hệ thống tồn kho hay hạn mức phát quà tự động.
+
+Chốt quà mở hộp thoại cách nhận; gửi xong mở lời chúc 20/10, có nút xem lại. Nhập lại tên và giới tính sẽ tìm hồ sơ cũ (bỏ khoảng trắng dư, không phân biệt hoa/thường, vẫn phân biệt dấu). Nếu có nhiều hồ sơ trùng tên, ưu tiên hồ sơ đã chốt gần nhất. Cùng cookie gốc được tiếp tục và xem đủ dữ liệu; trình duyệt khác chỉ xem lại kết quả/cách nhận tổng quát/lời chúc, không xem địa chỉ, SĐT, ngân hàng, QR hoặc sửa dữ liệu. Tên không phải bằng chứng sở hữu; cần liên hệ người tổ chức nếu mất cookie và chưa hoàn tất.

@@ -39,7 +39,7 @@ test('name-only entry gets exactly 3 turns under concurrency and resumes without
   assert.equal((await outsider('choose', { spinId: state.spins[0].id })).status, 400);
   assert.equal((await api('choose', { spinId: state.spins[1].id })).status, 200);
   assert.equal((await api('choose', { spinId: state.spins[2].id })).status, 409);
-  const resumed = await register(api, 'Tên khác', 'male');
+  const resumed = await register(api, '  LINH dễ thương ', 'female');
   assert.equal(resumed.status, 200); assert.equal(resumed.data.name, 'Linh dễ thương');
   assert.equal(resumed.data.gender, 'female');
   assert.equal(resumed.data.remaining, 0); assert.equal(resumed.data.choice.spin_id, state.spins[1].id);
@@ -73,7 +73,7 @@ test('name and gender validation, separate visitors, removed auth, CSRF and admi
   assert.equal((await api('login', {})).status, 404);
   assert.equal((await register(api)).status, 201); assert.equal((await register(api)).status, 200);
   const other = client(server), separate = await register(other);
-  assert.equal(separate.status, 201); assert.notEqual(separate.data.id, (await api('me')).data.id);
+  assert.equal(separate.status, 200); assert.equal(separate.data.id, (await api('me')).data.id); assert.equal(separate.data.readOnly, true);
   assert.equal((await api('spin', {}, { Origin: 'https://evil.example' })).status, 403);
   assert.equal((await api('spin', {}, { 'Sec-Fetch-Site': 'cross-site' })).status, 403);
   assert.equal((await api('admin/login', { password: '' })).status, 503);
@@ -193,4 +193,41 @@ test('leaderboard exposes only prize aggregates and sorts by configured value', 
   assert.ok(board.every(row => Object.keys(row).sort().join(',') === 'count,gift,value'));
   assert.ok(!JSON.stringify(board).includes('0900000000'));
   assert.ok(!JSON.stringify(board).includes('Linh dễ thương'));
+});
+
+test('name and gender replay returns results without private payment data or mutation rights', async t => {
+  const server=await serve(t), owner=client(server), reviewer=client(server);
+  const p=await completeSpins(owner);
+  await owner('fulfillment',{mode:'cash',method:'bank',bank:'Ngân hàng kiểm thử',account:'000000000001',holder:'NGUOI KIEM THU',expectedAmount:p.spins[0].gift.cashValue});
+  const replay=await register(reviewer,'  LINH dễ thương  ','female');
+  assert.equal(replay.status,200); assert.equal(replay.data.id,p.id); assert.equal(replay.data.readOnly,true);
+  assert.equal(replay.data.spins.length,3); assert.equal(replay.data.choice.spin_id,p.spins[0].id);
+  assert.equal(replay.data.fulfillment.mode,'cash'); assert.equal(replay.data.fulfillment.redacted,true);
+  assert.equal(replay.data.fulfillment.account,undefined); assert.equal(replay.data.fulfillment.bank,undefined);
+  assert.equal(replay.data.fulfillment.holder,undefined); assert.equal(replay.data.fulfillment.hasQr,undefined);
+  assert.equal((await reviewer('me')).data.readOnly,true);
+  assert.equal((await reviewer('spin',{})).status,401);
+  assert.equal((await reviewer('choose',{spinId:p.spins[0].id})).status,401);
+  assert.equal((await reviewer('fulfillment',{mode:'gift'})).status,401);
+  assert.equal((await reviewer('qr')).status,401);
+  assert.equal((await owner('me')).data.fulfillment.account,'000000000001');
+  const wrongGender=await register(client(server),'Linh dễ thương','male');
+  assert.equal(wrongGender.status,201); assert.notEqual(wrongGender.data.id,p.id);
+});
+test('public prize structure has quantities only; only admin can configure it; pages serve', async t => {
+  const server=await serve(t), guest=client(server), admin=client(server);
+  const prizes=(await guest('prizes')).data;
+  assert.deepEqual(prizes.map(p=>p.quantity),[2,3,5,10,20]);
+  assert.ok(prizes.every(p=>Object.keys(p).sort().join(',')==='id,label,quantity'));
+  assert.equal((await guest('admin/prizes',{items:prizes})).status,401);
+  await admin('admin/login',{password:'test-admin-password'});
+  assert.equal((await admin('admin/prizes',{items:prizes.map(p=>({...p,quantity:-1}))})).status,400);
+  assert.equal((await admin('admin/prizes',{items:prizes.map(p=>({...p,quantity:7}))})).status,200);
+  assert.ok((await guest('prizes')).data.every(p=>p.quantity===7));
+  for(const path of ['/','/wheel','/prizes?page=2']){
+    const res=await fetch('http://127.0.0.1:'+server.address().port+path);
+    assert.equal(res.status,200); const html=await res.text();
+    assert.ok(html.includes('wish-dialog')); assert.ok(html.includes('receive-dialog'));
+    assert.ok(!html.includes('leaderboard-section'));
+  }
 });

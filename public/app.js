@@ -22,10 +22,11 @@ function drawWheel() {
   for (let i = 0; i < 36; i++) { const a = i * Math.PI * 2 / 36; ctx.beginPath(); ctx.arc(c + Math.cos(a) * (r - 14), c + Math.sin(a) * (r - 14), 3.4, 0, Math.PI * 2); ctx.fillStyle = '#fff9ef'; ctx.fill(); }
 }
 function render() {
-  $('welcome').hidden = !!user; $('play').hidden = !user; $('account').replaceChildren();
+  $('welcome').hidden = false; $('play').hidden = !user; $('account').replaceChildren();
   const male = user?.gender === 'male'; $('bye').hidden = !male;
   if (male && location.pathname !== '/bai-anh-em') history.replaceState({}, '', '/bai-anh-em');
   if (!male && location.pathname === '/bai-anh-em') history.replaceState({}, '', '/');
+  renderPages();
   if (!user) return;
   const name = document.createElement('span'); name.textContent = '♡ ' + user.name;
   $('account').append(name); if (male) return;
@@ -33,22 +34,22 @@ function render() {
   $('play-hint').textContent = user.choice ? 'Một món quà nhỏ đang chờ đến tay bạn.' : user.remaining ? `Bạn còn ${user.remaining} lượt khám phá điều dễ thương.` : 'Ba điều dễ thương đã ở đây. Bạn thích món nào nhất?';
   $('turns').replaceChildren();
   for (let i = 0; i < 3; i++) { const el = document.createElement('div'); el.className = 'turn-chip' + (i < user.spins.length ? ' used' : ''); el.textContent = i < user.spins.length ? '✓ Lượt ' + (i + 1) : '✧ Lượt ' + (i + 1); $('turns').append(el); }
-  $('spin').hidden = !user.remaining; $('spin').disabled = spinning;
+  $('spin').hidden = !user.remaining || user.readOnly; $('spin').disabled = spinning;
   $('result-count').textContent = `${user.spins.length} / 3`;
   $('selection-hint').textContent = user.choice ? 'Món quà đã chốt được lưu cho người tổ chức.' : user.remaining ? 'Quay đủ 3 lượt rồi chọn món bạn yêu nhất nhé.' : 'Chạm vào một món quà, rồi bấm chốt để xác nhận.';
   $('results').replaceChildren();
   if (!user.spins.length) { const empty = document.createElement('div'); empty.className = 'empty-gift'; empty.textContent = '🎁 Giỏ quà đang chờ vòng quay đầu tiên'; $('results').append(empty); }
   user.spins.forEach(spin => {
     const isSelected = user.choice ? user.choice.spin_id === spin.id : selected === spin.id;
-    const button = document.createElement('button'); button.className = 'gift-option' + (isSelected ? ' selected' : ''); button.disabled = !!user.choice || !!user.remaining || spinning; button.setAttribute('aria-pressed', String(isSelected));
+    const button = document.createElement('button'); button.className = 'gift-option' + (isSelected ? ' selected' : ''); button.disabled = !!user.choice || !!user.remaining || spinning || user.readOnly; button.setAttribute('aria-pressed', String(isSelected));
     const icon = document.createElement('span'); icon.className = 'gift-icon'; icon.textContent = spin.gift.emoji;
     const text = document.createElement('span'), title = document.createElement('strong'), sub = document.createElement('small'); title.textContent = spin.gift.name; sub.textContent = 'Kết quả lượt ' + spin.turn; text.append(title, sub);
     const check = document.createElement('span'); check.className = 'check'; check.textContent = isSelected ? '♥' : '○'; button.append(icon, text, check);
     button.onclick = () => { selected = spin.id; render(); }; $('results').append(button);
   });
-  $('confirm-gift').hidden = !!user.choice || !!user.remaining; $('confirm-gift').disabled = !selected || spinning;
+  $('confirm-gift').hidden = !!user.choice || !!user.remaining || user.readOnly; $('confirm-gift').disabled = !selected || spinning;
   $('chosen').hidden = !user.choice;
-  if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = user.fulfillment ? 'Đã chốt quà và gửi thông tin nhận ♡' : 'Đã chốt quà! Hãy điền thông tin nhận bên dưới để hoàn tất nhé ♡'; $('chosen').append(b, p); }
+  if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = user.fulfillment ? 'Đã chốt quà và gửi thông tin nhận ♡' : 'Đã chốt quà! Bấm Cách nhận quà để hoàn tất nhé ♡'; $('chosen').append(b, p); }
   renderReceiving();
 }
 $('bye-home').onclick = async () => {
@@ -62,7 +63,7 @@ $('bye-home').onclick = async () => {
 };
 $('auth-form').onsubmit = async event => {
   event.preventDefault(); $('auth-submit').disabled = true; $('auth-error').textContent = '';
-  try { const data = Object.fromEntries(new FormData(event.currentTarget)); user = await api('join', data); selected = null; render(); }
+  try { const data = Object.fromEntries(new FormData(event.currentTarget)); user = await api('join', data); selected = null; navigate(user.gender==='male'?'/bai-anh-em':'/wheel'); if(user.fulfillment) openCelebration(); else if(user.choice && !user.readOnly) openReceiving(); }
   catch (e) { $('auth-error').textContent = e.message; }
   finally { $('auth-submit').disabled = false; }
 };
@@ -87,14 +88,15 @@ $('confirm-gift').onclick = async () => {
   const gift = user.spins.find(s => s.id === selected).gift;
   if (!confirm(`Bạn chốt ${gift.name} nhé? Sau khi chốt sẽ không đổi được.`)) return;
   $('confirm-gift').disabled = true; $('play-error').textContent = '';
-  try { user = await api('choose', { spinId: selected }); render(); loadLeaderboard(); toast('Đã lưu món quà bạn chọn ♡'); }
+  try { user = await api('choose', { spinId: selected }); render(); openReceiving(); toast('Đã lưu món quà bạn chọn ♡'); }
   catch (e) { $('play-error').textContent = e.message; try { user = await api('me'); } catch {} render(); }
 };
 async function init() {
   try {
     gifts = await api('gifts'); drawWheel();
-    for (const gift of gifts) { const option = document.createElement('option'); option.value = gift.id; option.textContent = gift.emoji + ' ' + gift.name; $('leaderboard-filter').append(option); }
-    loadLeaderboard();
+    structure = await api('prizes');
+    for (const prize of structure) { const option=document.createElement('option'); option.value=prize.id; option.textContent=prize.label; $('prizes-filter').append(option); }
+    prizePage=Number(new URLSearchParams(location.search).get('page'))||1;
     const res = await fetch('/api/me');
     if (res.ok) user = await res.json(); else if (res.status !== 401) throw new Error('Chưa tải được lượt chơi. Hãy tải lại trang.');
     render();
@@ -104,7 +106,7 @@ const money = value => new Intl.NumberFormat('vi-VN', { style: 'currency', curre
 let qrData = null;
 function renderReceiving() {
   const active = user?.gender === 'female' && !!user.choice;
-  $('receiving-form').hidden = !active || !!user?.fulfillment;
+  $('receiving-form').hidden = !active || !!user?.fulfillment || user.readOnly;
   $('receive-summary').hidden = !active || !user?.fulfillment;
   if (!active) return;
   const gift = user.spins.find(s => s.id === user.choice.spin_id).gift;
@@ -117,7 +119,7 @@ function renderReceiving() {
   $('receive-summary').replaceChildren();
   const h = document.createElement('h3'); h.textContent = 'Đã gửi thông tin nhận ♡';
   const detail = document.createElement('p');
-  detail.textContent = f.mode === 'gift' ? `🎁 Nhận quà\nĐiện thoại: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Nhận giá trị tương đương: ${money(f.cashAmount)}\n` + (f.method === 'bank' ? `Ngân hàng: ${f.bank}\nSố tài khoản: ${f.account}\nChủ tài khoản: ${f.holder}` : 'Nhận qua mã QR bạn đã tải lên.');
+  detail.textContent = f.redacted ? (f.mode === 'gift' ? '🎁 Bạn đã chọn nhận quà. Thông tin nhận đã được lưu riêng tư.' : '💸 Bạn đã chọn nhận giá trị tương đương: ' + money(f.cashAmount)) : f.mode === 'gift' ? `🎁 Nhận quà\nĐiện thoại: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Nhận giá trị tương đương: ${money(f.cashAmount)}\n` + (f.method === 'bank' ? `Ngân hàng: ${f.bank}\nSố tài khoản: ${f.account}\nChủ tài khoản: ${f.holder}` : 'Nhận qua mã QR bạn đã tải lên.');
   $('receive-summary').append(h, detail);
   if (f.hasQr) { const img = document.createElement('img'); img.className = 'qr-preview'; img.src = '/api/qr'; img.alt = 'QR nhận tiền đã gửi'; $('receive-summary').append(img); }
   const note = document.createElement('p'); note.textContent = 'Người tổ chức đã nhận được thông tin. Nếu cần sửa, hãy liên hệ người tổ chức nhé.'; $('receive-summary').append(note);
@@ -149,41 +151,71 @@ $('receiving-form').onsubmit = async event => {
       data.expectedAmount = user.spins.find(s => s.id === user.choice.spin_id).gift.cashValue;
       if (data.method === 'qr') { if (!qrData) throw new Error('Hãy chờ ảnh QR tải xong hoặc chọn lại ảnh.'); data.qrData = qrData; }
     }
-    user = await api('fulfillment', data); qrData = null; $('receive-qr').value = ''; render(); toast('Đã lưu thông tin nhận của bạn ♡');
+    user = await api('fulfillment', data); qrData = null; $('receive-qr').value = ''; render(); $('receive-dialog').close(); openCelebration(); toast('Đã lưu thông tin nhận của bạn ♡');
   } catch (e) {
     $('receive-error').textContent = e.message;
     try { user = await api('me'); render(); } catch {}
   } finally { $('receive-submit').disabled = false; }
 };
 
-let ranking = [];
-async function loadLeaderboard() {
-  $('leaderboard-refresh').disabled = true;
-  try { ranking = await api('leaderboard'); $('leaderboard-error').textContent = ''; renderLeaderboard(); }
-  catch (e) { $('leaderboard-error').textContent = e.message; }
-  finally { $('leaderboard-refresh').disabled = false; }
+
+let structure = [], prizePage = 1;
+const pageSize = 4;
+function navigate(path) {
+  if(path.startsWith('/prizes')) prizePage=Number(new URL(path,location.origin).searchParams.get('page'))||1;
+  history.pushState({},'',path); render(); window.scrollTo({top:0,behavior:reduceMotion?'instant':'smooth'});
 }
-function renderLeaderboard() {
-  const filter = $('leaderboard-filter').value;
-  const visible = ranking.filter(p => !filter || p.gift.id === filter);
-  $('ranking-body').replaceChildren(); $('ranking-empty').hidden = !!visible.length;
-  $('ranking-count').textContent = `${ranking.reduce((sum, entry) => sum + entry.count, 0)} người đã chốt giải`;
-  let lastAmount = -1, rank = 0;
-  visible.forEach((entry, index) => {
-    if (entry.value !== lastAmount) rank = index + 1;
-    lastAmount = entry.value;
-    const tr = document.createElement('tr');
-    for (const value of [rank === 1 ? '🥇 ' + rank : rank === 2 ? '🥈 ' + rank : rank === 3 ? '🥉 ' + rank : '#' + rank, `${entry.gift.emoji} ${entry.gift.name}`, entry.count + ' người', entry.value ? money(entry.value) : 'Chưa bật quy đổi']) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
-    $('ranking-body').append(tr);
-  });
-  $('prize-counts').replaceChildren();
-  for (const gift of gifts) {
-    const button = document.createElement('button'); button.className = 'prize-count' + (filter === gift.id ? ' active' : '');
-    button.textContent = `${gift.emoji} ${gift.name} · ${ranking.find(p => p.gift.id === gift.id)?.count || 0}`;
-    button.setAttribute('aria-pressed', String(filter === gift.id)); button.onclick = () => { $('leaderboard-filter').value = filter === gift.id ? '' : gift.id; renderLeaderboard(); }; $('prize-counts').append(button);
+function openReceiving() {
+  if (!user?.choice) return;
+  renderReceiving(); if (!$('receive-dialog').open) $('receive-dialog').showModal();
+}
+function openCelebration() {
+  if (!user?.fulfillment) return;
+  $('wish-name').textContent = `Gửi ${user.name} một chút yêu thương ♡`;
+  if (!$('wish-dialog').open) $('wish-dialog').showModal();
+}
+function renderPages() {
+  let path = location.pathname;
+  if (path === '/wheel' && !user) { history.replaceState({},'','/'); path='/'; }
+  $('entry-page').hidden = path !== '/';
+  $('wheel-page').hidden = path !== '/wheel';
+  $('prizes-page').hidden = path !== '/prizes';
+  $('how-section').hidden = path !== '/';
+  $('wheel-tools').hidden = path !== '/wheel';
+  $('open-receiving').hidden = !user?.choice;
+  $('open-wish').hidden = !user?.fulfillment;
+  $('review-note').hidden = !user?.readOnly;
+  $('review-banner').hidden = !user?.readOnly || path !== '/wheel';
+  $('prizes-back').textContent = user?.gender === 'female' ? '← Về vòng quay' : '← Về trang chủ';
+  $('structure-list').replaceChildren();
+  for (const prize of structure) { const row=document.createElement('div'); row.className='structure-row'; const title=document.createElement('span'); title.textContent=prize.label; const count=document.createElement('strong'); count.textContent=prize.quantity+' giải'; row.append(title,count); $('structure-list').append(row); }
+  renderPrizes();
+}
+function renderPrizes() {
+  const filter=$('prizes-filter').value;
+  const items=gifts.filter(g=>!filter||g.tier===filter);
+  const pages=Math.max(1,Math.ceil(items.length/pageSize)); prizePage=Math.min(Math.max(1,prizePage),pages);
+  $('prize-cards').replaceChildren();
+  for (const gift of items.slice((prizePage-1)*pageSize,prizePage*pageSize)) {
+    const card=document.createElement('article'); card.className='prize-card'; card.style.backgroundColor=gift.color;
+    const icon=document.createElement('span'); icon.className='prize-card-icon'; icon.textContent=gift.emoji;
+    const label=document.createElement('small'); label.textContent=structure.find(p=>p.id===gift.tier)?.label || 'Phần quà';
+    const name=document.createElement('h3'); name.textContent=gift.name; card.append(icon,label,name); $('prize-cards').append(card);
   }
+  $('page-status').textContent=`Trang ${prizePage} / ${pages}`;
+  $('prizes-prev').disabled=prizePage===1; $('prizes-next').disabled=prizePage===pages;
 }
-$('leaderboard-filter').onchange = renderLeaderboard;
-$('leaderboard-refresh').onclick = loadLeaderboard;
+document.addEventListener('click',event=>{
+  const link=event.target.closest('[data-page]'); if(!link)return;
+  event.preventDefault(); navigate(link.dataset.page);
+});
+window.addEventListener('popstate',()=>{prizePage=Number(new URLSearchParams(location.search).get('page'))||1;render();});
+$('prizes-filter').onchange=()=>{prizePage=1;renderPrizes();};
+function changePrizePage(delta) { prizePage+=delta; history.replaceState({},'',`/prizes?page=${prizePage}`); renderPrizes(); }
+$('prizes-prev').onclick=()=>changePrizePage(-1); $('prizes-next').onclick=()=>changePrizePage(1);
+$('prizes-back').onclick=()=>navigate(user?.gender==='female'?'/wheel':'/');
+$('open-receiving').onclick=openReceiving; $('open-wish').onclick=openCelebration;
+$('receive-close').onclick=()=>$('receive-dialog').close();
+$('wish-close').onclick=()=>$('wish-dialog').close();
 
 init();
