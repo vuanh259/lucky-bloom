@@ -48,7 +48,8 @@ function render() {
   });
   $('confirm-gift').hidden = !!user.choice || !!user.remaining; $('confirm-gift').disabled = !selected || spinning;
   $('chosen').hidden = !user.choice;
-  if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = 'Đã chốt quà! Người tổ chức đã có lựa chọn của bạn ♡'; $('chosen').append(b, p); }
+  if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = user.fulfillment ? 'Đã chốt quà và gửi thông tin nhận ♡' : 'Đã chốt quà! Hãy điền thông tin nhận bên dưới để hoàn tất nhé ♡'; $('chosen').append(b, p); }
+  renderReceiving();
 }
 $('bye-home').onclick = async () => {
   $('bye-home').disabled = true;
@@ -86,15 +87,103 @@ $('confirm-gift').onclick = async () => {
   const gift = user.spins.find(s => s.id === selected).gift;
   if (!confirm(`Bạn chốt ${gift.name} nhé? Sau khi chốt sẽ không đổi được.`)) return;
   $('confirm-gift').disabled = true; $('play-error').textContent = '';
-  try { user = await api('choose', { spinId: selected }); render(); toast('Đã lưu món quà bạn chọn ♡'); }
+  try { user = await api('choose', { spinId: selected }); render(); loadLeaderboard(); toast('Đã lưu món quà bạn chọn ♡'); }
   catch (e) { $('play-error').textContent = e.message; try { user = await api('me'); } catch {} render(); }
 };
 async function init() {
   try {
     gifts = await api('gifts'); drawWheel();
+    for (const gift of gifts) { const option = document.createElement('option'); option.value = gift.id; option.textContent = gift.emoji + ' ' + gift.name; $('leaderboard-filter').append(option); }
+    loadLeaderboard();
     const res = await fetch('/api/me');
     if (res.ok) user = await res.json(); else if (res.status !== 401) throw new Error('Chưa tải được lượt chơi. Hãy tải lại trang.');
     render();
   } catch (e) { $('auth-error').textContent = e.message || 'Chưa kết nối được máy chủ. Hãy tải lại trang.'; $('auth-submit').disabled = true; }
 }
+const money = value => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+let qrData = null;
+function renderReceiving() {
+  const active = user?.gender === 'female' && !!user.choice;
+  $('receiving-form').hidden = !active || !!user?.fulfillment;
+  $('receive-summary').hidden = !active || !user?.fulfillment;
+  if (!active) return;
+  const gift = user.spins.find(s => s.id === user.choice.spin_id).gift;
+  $('cash-mode').disabled = !gift.cashValue;
+  if (!gift.cashValue && $('cash-mode').checked) document.querySelector('[name=mode][value=gift]').checked = true;
+  $('cash-value').textContent = gift.cashValue ? `Giá trị tương đương của ${gift.name}: ${money(gift.cashValue)}` : 'Món quà này chưa được người tổ chức đặt giá trị quy đổi. Bạn vẫn có thể chọn nhận quà.';
+  syncReceiving();
+  const f = user.fulfillment;
+  if (!f) return;
+  $('receive-summary').replaceChildren();
+  const h = document.createElement('h3'); h.textContent = 'Đã gửi thông tin nhận ♡';
+  const detail = document.createElement('p');
+  detail.textContent = f.mode === 'gift' ? `🎁 Nhận quà\nĐiện thoại: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Nhận giá trị tương đương: ${money(f.cashAmount)}\n` + (f.method === 'bank' ? `Ngân hàng: ${f.bank}\nSố tài khoản: ${f.account}\nChủ tài khoản: ${f.holder}` : 'Nhận qua mã QR bạn đã tải lên.');
+  $('receive-summary').append(h, detail);
+  if (f.hasQr) { const img = document.createElement('img'); img.className = 'qr-preview'; img.src = '/api/qr'; img.alt = 'QR nhận tiền đã gửi'; $('receive-summary').append(img); }
+  const note = document.createElement('p'); note.textContent = 'Người tổ chức đã nhận được thông tin. Nếu cần sửa, hãy liên hệ người tổ chức nhé.'; $('receive-summary').append(note);
+}
+function syncReceiving() {
+  const cash = $('cash-mode').checked, qr = document.querySelector('[name=method][value=qr]').checked;
+  $('delivery-fields').hidden = cash; $('cash-fields').hidden = !cash;
+  $('bank-fields').hidden = qr; $('qr-fields').hidden = !qr;
+  for (const id of ['receive-phone', 'receive-address']) { $(id).disabled = cash; $(id).required = !cash; }
+  for (const id of ['receive-bank', 'receive-account', 'receive-holder']) { $(id).disabled = !cash || qr; $(id).required = cash && !qr; }
+  $('receive-qr').disabled = !cash || !qr; $('receive-qr').required = cash && qr;
+}
+$('receiving-form').onchange = syncReceiving;
+$('receive-qr').onchange = async () => {
+  qrData = null; $('qr-preview').hidden = true; $('qr-preview').removeAttribute('src'); $('receive-error').textContent = '';
+  const file = $('receive-qr').files[0]; if (!file) return;
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) { $('receive-error').textContent = 'Chọn ảnh PNG, JPEG hoặc WebP, tối đa 2 MB.'; $('receive-qr').value = ''; return; }
+  try {
+    const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Không đọc được ảnh. Hãy chọn lại.')); reader.readAsDataURL(file); });
+    if ($('receive-qr').files[0] !== file) return;
+    qrData = data; $('qr-preview').src = data; $('qr-preview').hidden = false;
+  } catch (e) { $('receive-error').textContent = e.message; }
+};
+$('receiving-form').onsubmit = async event => {
+  event.preventDefault(); $('receive-error').textContent = ''; $('receive-submit').disabled = true;
+  try {
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    if (data.mode === 'cash') {
+      data.expectedAmount = user.spins.find(s => s.id === user.choice.spin_id).gift.cashValue;
+      if (data.method === 'qr') { if (!qrData) throw new Error('Hãy chờ ảnh QR tải xong hoặc chọn lại ảnh.'); data.qrData = qrData; }
+    }
+    user = await api('fulfillment', data); qrData = null; $('receive-qr').value = ''; render(); toast('Đã lưu thông tin nhận của bạn ♡');
+  } catch (e) {
+    $('receive-error').textContent = e.message;
+    try { user = await api('me'); render(); } catch {}
+  } finally { $('receive-submit').disabled = false; }
+};
+
+let ranking = [];
+async function loadLeaderboard() {
+  $('leaderboard-refresh').disabled = true;
+  try { ranking = await api('leaderboard'); $('leaderboard-error').textContent = ''; renderLeaderboard(); }
+  catch (e) { $('leaderboard-error').textContent = e.message; }
+  finally { $('leaderboard-refresh').disabled = false; }
+}
+function renderLeaderboard() {
+  const filter = $('leaderboard-filter').value;
+  const visible = ranking.filter(p => !filter || p.gift.id === filter);
+  $('ranking-body').replaceChildren(); $('ranking-empty').hidden = !!visible.length;
+  $('ranking-count').textContent = `${ranking.reduce((sum, entry) => sum + entry.count, 0)} người đã chốt giải`;
+  let lastAmount = -1, rank = 0;
+  visible.forEach((entry, index) => {
+    if (entry.value !== lastAmount) rank = index + 1;
+    lastAmount = entry.value;
+    const tr = document.createElement('tr');
+    for (const value of [rank === 1 ? '🥇 ' + rank : rank === 2 ? '🥈 ' + rank : rank === 3 ? '🥉 ' + rank : '#' + rank, `${entry.gift.emoji} ${entry.gift.name}`, entry.count + ' người', entry.value ? money(entry.value) : 'Chưa bật quy đổi']) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
+    $('ranking-body').append(tr);
+  });
+  $('prize-counts').replaceChildren();
+  for (const gift of gifts) {
+    const button = document.createElement('button'); button.className = 'prize-count' + (filter === gift.id ? ' active' : '');
+    button.textContent = `${gift.emoji} ${gift.name} · ${ranking.find(p => p.gift.id === gift.id)?.count || 0}`;
+    button.setAttribute('aria-pressed', String(filter === gift.id)); button.onclick = () => { $('leaderboard-filter').value = filter === gift.id ? '' : gift.id; renderLeaderboard(); }; $('prize-counts').append(button);
+  }
+}
+$('leaderboard-filter').onchange = renderLeaderboard;
+$('leaderboard-refresh').onclick = loadLeaderboard;
+
 init();

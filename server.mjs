@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { setupFulfillment } from './fulfillment.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, randomInt, timingSafeEqual, createHash } from 'node:crypto';
 import { readFileSync, mkdirSync } from 'node:fs';
@@ -20,6 +21,7 @@ export function createApp(options = {}) {
     CREATE TABLE IF NOT EXISTS choices(user_id INTEGER PRIMARY KEY REFERENCES users(id), spin_id INTEGER NOT NULL UNIQUE REFERENCES spins(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   const gifts = JSON.parse(readFileSync(join(root, 'gifts.json'), 'utf8'));
   if (!Array.isArray(gifts) || gifts.length < 2 || gifts.length > 12 || gifts.some(g => !g.id || !g.name || !/^#[0-9a-f]{6}$/i.test(g.color))) throw new Error('gifts.json không hợp lệ');
+  const receiving = setupFulfillment(db, gifts);
   const adminPassword = options.adminPassword ?? process.env.ADMIN_PASSWORD ?? '';
   const secure = options.secure ?? process.env.COOKIE_SECURE === 'true';
   const limits = new Map();
@@ -49,18 +51,18 @@ export function createApp(options = {}) {
   }
   function state(id) {
     const u = db.prepare('SELECT id,username,name,gender,created_at FROM users WHERE id=?').get(id);
-    const spins = db.prepare('SELECT id,turn,gift,created_at FROM spins WHERE user_id=? ORDER BY turn').all(id).map(s => ({ ...s, gift: JSON.parse(s.gift) }));
+    const spins = db.prepare('SELECT id,turn,gift,created_at FROM spins WHERE user_id=? ORDER BY turn').all(id).map(s => ({ ...s, gift: { ...JSON.parse(s.gift), cashValue: receiving.value(JSON.parse(s.gift).id) } }));
     const choice = db.prepare('SELECT spin_id,created_at FROM choices WHERE user_id=?').get(id) || null;
-    return { ...u, spins, choice, remaining: 3 - spins.length };
+    return { ...u, spins, choice, fulfillment: receiving.record(id), remaining: 3 - spins.length };
   }
   function eligible(req) {
     const s = session(req), u = db.prepare('SELECT * FROM users WHERE id=?').get(s.user_id);
     if (u.gender !== 'female') throw fail(403, 'bai anh em');
     return s.user_id;
   }
-  async function body(req) {
+  async function body(req, max = 8192) {
     let text = '', length = 0;
-    for await (const chunk of req) { length += chunk.length; if (length > 8192) throw fail(413, 'Dữ liệu quá dài.'); text += chunk; }
+    for await (const chunk of req) { length += chunk.length; if (length > max) throw fail(413, 'Dữ liệu quá dài.'); text += chunk; }
     try { return JSON.parse(text || '{}'); } catch { throw fail(400, 'Dữ liệu không hợp lệ.'); }
   }
   const publicFiles = new Map([
@@ -84,7 +86,33 @@ export function createApp(options = {}) {
         }
         if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'Chỉ chấp nhận JSON.');
       }
-      if (path === '/api/gifts' && req.method === 'GET') return json(gifts);
+      if (path === '/api/gifts' && req.method === 'GET') return json(receiving.catalog());
+      if (path === '/api/leaderboard' && req.method === 'GET') {
+        const chosen = db.prepare('SELECT s.gift FROM choices c JOIN spins s ON s.id=c.spin_id').all().map(row => JSON.parse(row.gift).id);
+        const entries = receiving.catalog().map(gift => ({ gift: { id: gift.id, name: gift.name, emoji: gift.emoji }, value: gift.cashValue || 0, count: chosen.filter(id => id === gift.id).length })).sort((a,b) => b.value-a.value);
+        return json(entries);
+      }
+      if (path === '/api/fulfillment' && req.method === 'POST') {
+        const id = eligible(req); limited(req, 'fulfillment');
+        const b = await body(req, 3 * 1024 * 1024);
+        receiving.save(id, b); return json(state(id));
+      }
+      if (path === '/api/admin/gift-values' && req.method === 'GET') { session(req, 'admin'); return json(receiving.catalog()); }
+      if (path === '/api/admin/gift-values' && req.method === 'POST') {
+        session(req, 'admin'); const b = await body(req); return json(receiving.configure(b.items));
+      }
+      if (path === '/api/qr' && req.method === 'GET') {
+        let own = null, admin = false;
+        try { own = session(req).user_id; } catch {}
+        try { session(req, 'admin'); admin = true; } catch {}
+        const id = Number(url.searchParams.get('userId') || own);
+        if (!own && !admin) throw fail(401, 'Bạn cần quyền truy cập để xem ảnh.');
+        if (!admin && id !== own) throw fail(403, 'Bạn không được xem ảnh này.');
+        const row = db.prepare('SELECT qr,qr_mime FROM fulfillment WHERE user_id=?').get(id);
+        if (!row?.qr) throw fail(404, 'Chưa có ảnh QR.');
+        res.writeHead(200, { 'Content-Type': row.qr_mime, 'Cache-Control': 'no-store', 'Content-Disposition': 'inline; filename="receive-qr.' + ({'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[row.qr_mime]) + '"' });
+        return res.end(row.qr);
+      }
       if (path === '/api/me' && req.method === 'GET') return json(state(session(req).user_id));
       if (path === '/api/join' && req.method === 'POST') {
         limited(req, 'join');

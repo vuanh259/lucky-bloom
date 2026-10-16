@@ -80,3 +80,15 @@ Dockerfile          Triển khai có ổ đĩa bền vững
 ## Tương thích dữ liệu cũ
 
 Hồ sơ, lượt quay và quà đã chốt từ bản trước được giữ nguyên. Cookie phiên còn hạn vẫn dùng tiếp được. Các cột đăng nhập cũ được giữ trong SQLite để không làm mất dữ liệu, nhưng các API đăng ký/đăng nhập của người chơi đã gỡ bỏ. Quản trị vẫn yêu cầu mật khẩu riêng.
+
+## Nhận quà hoặc nhận giá trị tương đương
+
+Sau khi chốt một món, người chơi chọn nhận quà (số điện thoại Việt Nam và địa chỉ) hoặc giá trị tương đương. Người tổ chức đặt số tiền cho từng món ngay trong /admin; món chưa cấu hình chỉ nhận quà. Người chơi nhận tiền nhập ngân hàng + số tài khoản + tên chủ tài khoản, hoặc tải ảnh QR PNG/JPEG/WebP tối đa 2 MB. Ứng dụng lưu ảnh, không tự đọc/xác minh mã QR và không tự chuyển tiền.
+
+Thông tin nhận được lưu một lần, gắn với món đã chốt; số tiền được kiểm tra trên máy chủ và giữ nguyên khi thay đổi cấu hình sau này. Lựa chọn cũ vẫn có thể bổ sung thông tin nhận. Quản trị xem thông tin nhận, mở ảnh QR và xuất CSV. Ảnh nằm trong SQLite, chỉ người gửi hoặc quản trị được xem, không nằm trong public/ và không đưa lên GitHub. Sao lưu như cơ sở dữ liệu hiện tại.
+
+## Giá trị mẫu và bảng xếp hạng
+
+Giá trị mặc định: Gấu bông 50.000đ, Trà sữa 10.000đ, Bó hoa 30.000đ, Bánh ngọt 20.000đ, Son xinh 40.000đ, Quà bí mật 50.000đ. Chúng là cấu hình mẫu được nạp một lần; chỉnh hoặc tắt trong quản trị vẫn được giữ sau restart.
+
+Bảng xếp hạng công khai thống kê theo loại giải: giá trị quy đổi hiện tại, số người đã chốt, lọc theo loại giải và đồng hạng khi cùng giá trị. Không công khai tên hay chi tiết người chơi; tên và lựa chọn cụ thể vẫn chỉ xem trong quản trị. Địa chỉ, điện thoại, ngân hàng và QR không có trong API bảng xếp hạng.

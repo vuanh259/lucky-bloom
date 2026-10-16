@@ -87,12 +87,17 @@ test('SQLite persists across server restarts', async t => {
     rmSync(dir, { recursive: true, force: true });
   });
   const first = createApp({ databasePath }); first.listen(0, '127.0.0.1'); await once(first, 'listening');
-  const api = client(first); await register(api); await api('spin', {});
+  const api = client(first); await register(api);
+  for (let i = 0; i < 3; i++) await api('spin', {});
+  const player = (await api('me')).data;
+  await api('choose', { spinId: player.spins[0].id });
+  await api('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử lưu qua restart' });
   await new Promise(resolve => { first.closeAllConnections(); first.close(resolve); });
   second = createApp({ databasePath }); second.listen(0, '127.0.0.1'); await once(second, 'listening');
   const other = client(second, api.cookie);
   const restored = await other('me');
-  assert.equal(restored.status, 200); assert.equal(restored.data.spins.length, 1); assert.equal(restored.data.remaining, 2);
+  assert.equal(restored.status, 200); assert.equal(restored.data.spins.length, 3); assert.equal(restored.data.remaining, 0);
+  assert.equal(restored.data.fulfillment.address, 'Địa chỉ kiểm thử lưu qua restart');
 });
 
 test('male visitor can return home and enter again, without resetting female turns', async t => {
@@ -109,4 +114,83 @@ test('male visitor can return home and enter again, without resetting female tur
   const players = (await admin('admin/players')).data;
   assert.equal(players.length, 2);
   assert.equal(players.find(p => p.id === male.data.id).gender, 'male');
+});
+
+async function completeSpins(api) {
+  await register(api);
+  for (let i = 0; i < 3; i++) await api('spin', {});
+  const player = (await api('me')).data;
+  await api('choose', { spinId: player.spins[0].id });
+  return player;
+}
+async function setValues(admin, amount = 50000) {
+  await admin('admin/login', { password: 'test-admin-password' });
+  const gifts = (await admin('admin/gift-values')).data;
+  return admin('admin/gift-values', { items: gifts.map(g => ({ id: g.id, amount })) });
+}
+test('delivery requires a choice and valid contact details; saves once and is private', async t => {
+  const server = await serve(t), visitor = client(server), stranger = client(server), admin = client(server);
+  await register(visitor);
+  assert.equal((await visitor('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử' })).status, 400);
+  for (let i = 0; i < 3; i++) await visitor('spin', {});
+  const p = (await visitor('me')).data; await visitor('choose', { spinId: p.spins[0].id });
+  assert.equal((await visitor('fulfillment', { mode: 'gift', phone: '123', address: 'abc' })).status, 400);
+  const saved = await visitor('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử, không giao hàng' });
+  assert.equal(saved.status, 200); assert.equal(saved.data.fulfillment.phone, '0900000000');
+  assert.equal(saved.data.fulfillment.mode, 'gift'); assert.equal(saved.data.fulfillment.cashAmount, null);
+  assert.equal((await visitor('fulfillment', { mode: 'gift' })).status, 409);
+  assert.equal((await stranger('admin/players')).status, 401);
+  await setValues(admin);
+  assert.equal((await admin('admin/players')).data[0].fulfillment.address, 'Địa chỉ kiểm thử, không giao hàng');
+});
+test('cash values are admin controlled, validated and frozen on submission', async t => {
+  const server = await serve(t), visitor = client(server), admin = client(server);
+  const p = await completeSpins(visitor);
+  await setValues(admin, null);
+  const data = { mode: 'cash', method: 'bank', bank: 'Ngân hàng kiểm thử', account: '000000000001', holder: 'NGUOI KIEM THU', expectedAmount: 50000 };
+  assert.equal((await visitor('fulfillment', data)).status, 400);
+  assert.equal((await visitor('admin/gift-values', { items: [] })).status, 401);
+  assert.equal((await setValues(admin, -1)).status, 400);
+  assert.equal((await setValues(admin)).status, 200);
+  assert.equal((await visitor('me')).data.spins[0].gift.cashValue, 50000);
+  assert.equal((await visitor('fulfillment', { ...data, expectedAmount: 1 })).status, 409);
+  assert.equal((await visitor('fulfillment', { ...data, account: '' })).status, 400);
+  const saved = await visitor('fulfillment', data); assert.equal(saved.status, 200);
+  assert.equal(saved.data.fulfillment.cashAmount, 50000); assert.equal(saved.data.fulfillment.account, '000000000001');
+  await setValues(admin, 80000);
+  const current = (await visitor('me')).data;
+  assert.equal(current.fulfillment.cashAmount, 50000); assert.equal(current.spins[0].gift.cashValue, 80000);
+  assert.equal(current.choice.spin_id, p.spins[0].id);
+});
+test('QR accepts only bounded image data and allows only owner or admin to read', async t => {
+  const server = await serve(t), visitor = client(server), stranger = client(server), admin = client(server);
+  const p = await completeSpins(visitor); await setValues(admin);
+  const data = { mode: 'cash', method: 'qr', expectedAmount: 50000 };
+  assert.equal((await visitor('fulfillment', { ...data, qrData: 'data:image/svg+xml;base64,PHN2Zz4=' })).status, 400);
+  assert.equal((await visitor('fulfillment', { ...data, qrData: 'data:image/png;base64,bm90LWltYWdl' })).status, 400);
+  const qrData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=';
+  const saved = await visitor('fulfillment', { ...data, qrData });
+  assert.equal(saved.status, 200); assert.equal(saved.data.fulfillment.hasQr, true); assert.equal(saved.data.fulfillment.qrData, undefined);
+  const url = `http://127.0.0.1:${server.address().port}/api/qr?userId=${p.id}`;
+  const own = await fetch(url, { headers: { Cookie: visitor.cookie } });
+  assert.equal(own.status, 200); assert.equal(own.headers.get('Content-Type'), 'image/png'); assert.equal(own.headers.get('Cache-Control'), 'no-store');
+  assert.deepEqual(Buffer.from(await own.arrayBuffer()), Buffer.from(qrData.split(',')[1], 'base64'));
+  assert.equal((await fetch(url)).status, 401);
+  await register(stranger, 'Người khác'); assert.equal((await fetch(url, { headers: { Cookie: stranger.cookie } })).status, 403);
+  assert.equal((await fetch(url, { headers: { Cookie: admin.cookie } })).status, 200);
+});
+
+test('leaderboard exposes only prize aggregates and sorts by configured value', async t => {
+  const server = await serve(t), visitor = client(server), admin = client(server);
+  const before = await visitor('leaderboard');
+  assert.equal(before.status, 200); assert.equal(before.data.length, 6);
+  assert.ok(before.data.every(row => row.value >= 10000 && row.value <= 50000 && row.count === 0));
+  await completeSpins(visitor);
+  await visitor('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử riêng tư' });
+  const board = (await client(server)('leaderboard')).data;
+  assert.equal(board.reduce((n, row) => n + row.count, 0), 1);
+  for (let i = 1; i < board.length; i++) assert.ok(board[i-1].value >= board[i].value);
+  assert.ok(board.every(row => Object.keys(row).sort().join(',') === 'count,gift,value'));
+  assert.ok(!JSON.stringify(board).includes('0900000000'));
+  assert.ok(!JSON.stringify(board).includes('Linh dễ thương'));
 });

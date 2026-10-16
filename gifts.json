@@ -1,8 +1,44 @@
 [
-  { "id": "bear", "name": "Gấu bông", "emoji": "🧸", "color": "#ffd6de" },
-  { "id": "tea", "name": "Trà sữa", "emoji": "🧋", "color": "#fff0c9" },
-  { "id": "flowers", "name": "Bó hoa", "emoji": "💐", "color": "#dcebd5" },
-  { "id": "cake", "name": "Bánh ngọt", "emoji": "🍰", "color": "#fbdce8" },
-  { "id": "lipstick", "name": "Son xinh", "emoji": "💄", "color": "#e7def6" },
-  { "id": "surprise", "name": "Quà bí mật", "emoji": "🎁", "color": "#dceef3" }
+  {
+    "id": "bear",
+    "name": "Gấu bông",
+    "emoji": "🧸",
+    "color": "#ffd6de",
+    "cashValue": 50000
+  },
+  {
+    "id": "tea",
+    "name": "Trà sữa",
+    "emoji": "🧋",
+    "color": "#fff0c9",
+    "cashValue": 10000
+  },
+  {
+    "id": "flowers",
+    "name": "Bó hoa",
+    "emoji": "💐",
+    "color": "#dcebd5",
+    "cashValue": 30000
+  },
+  {
+    "id": "cake",
+    "name": "Bánh ngọt",
+    "emoji": "🍰",
+    "color": "#fbdce8",
+    "cashValue": 20000
+  },
+  {
+    "id": "lipstick",
+    "name": "Son xinh",
+    "emoji": "💄",
+    "color": "#e7def6",
+    "cashValue": 40000
+  },
+  {
+    "id": "surprise",
+    "name": "Quà bí mật",
+    "emoji": "🎁",
+    "color": "#dceef3",
+    "cashValue": 50000
+  }
 ]
