@@ -101,6 +101,16 @@ export function createApp(options = {}) {
         const result = db.prepare('INSERT INTO users(username,name,gender,salt,password) VALUES(?,?,?,?,?)').run('guest:' + randomBytes(16).toString('hex'), name, b.gender, '', '');
         const id = Number(result.lastInsertRowid); startSession(res, id); return json(state(id), 201);
       }
+      if (path === '/api/leave' && req.method === 'POST') {
+        const current = session(req);
+        const player = db.prepare('SELECT gender FROM users WHERE id=?').get(current.user_id);
+        // Returning from the goodbye page preserves the saved record and never resets a spinner's turns.
+        if (player.gender !== 'male') throw fail(403, 'Không thể đặt lại lượt quay.');
+        await body(req);
+        db.prepare('DELETE FROM sessions WHERE token=?').run(hash(cookie(req, 'bloom_session')));
+        res.setHeader('Set-Cookie', `bloom_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`);
+        return json({ ok: true });
+      }
       if (path === '/api/spin' && req.method === 'POST') {
         const id = eligible(req); await body(req);
         // Synchronous transaction prevents concurrent requests from spending extra turns.

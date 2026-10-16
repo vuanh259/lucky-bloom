@@ -50,6 +50,15 @@ function render() {
   $('chosen').hidden = !user.choice;
   if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = 'Đã chốt quà! Người tổ chức đã có lựa chọn của bạn ♡'; $('chosen').append(b, p); }
 }
+$('bye-home').onclick = async () => {
+  $('bye-home').disabled = true;
+  try {
+    await api('leave', {}); user = null; selected = null;
+    $('auth-form').reset(); $('auth-error').textContent = ''; render();
+    $('name').focus();
+  } catch (e) { toast(e.message); }
+  finally { $('bye-home').disabled = false; }
+};
 $('auth-form').onsubmit = async event => {
   event.preventDefault(); $('auth-submit').disabled = true; $('auth-error').textContent = '';
   try { const data = Object.fromEntries(new FormData(event.currentTarget)); user = await api('join', data); selected = null; render(); }

@@ -94,3 +94,19 @@ test('SQLite persists across server restarts', async t => {
   const restored = await other('me');
   assert.equal(restored.status, 200); assert.equal(restored.data.spins.length, 1); assert.equal(restored.data.remaining, 2);
 });
+
+test('male visitor can return home and enter again, without resetting female turns', async t => {
+  const server = await serve(t), visitor = client(server), admin = client(server);
+  const male = await register(visitor, 'Bạn thử nam', 'male');
+  assert.equal((await visitor('leave', {})).status, 200);
+  assert.equal((await visitor('me')).status, 401);
+  const female = await register(visitor, 'Bạn thử nữ', 'female');
+  assert.equal(female.status, 201); assert.notEqual(female.data.id, male.data.id);
+  await visitor('spin', {});
+  assert.equal((await visitor('leave', {})).status, 403);
+  assert.equal((await visitor('me')).data.remaining, 2);
+  await admin('admin/login', { password: 'test-admin-password' });
+  const players = (await admin('admin/players')).data;
+  assert.equal(players.length, 2);
+  assert.equal(players.find(p => p.id === male.data.id).gender, 'male');
+});
