@@ -1,0 +1,8 @@
+[
+  { "id": "bear", "name": "Gấu bông", "emoji": "🧸", "color": "#ffd6de" },
+  { "id": "tea", "name": "Trà sữa", "emoji": "🧋", "color": "#fff0c9" },
+  { "id": "flowers", "name": "Bó hoa", "emoji": "💐", "color": "#dcebd5" },
+  { "id": "cake", "name": "Bánh ngọt", "emoji": "🍰", "color": "#fbdce8" },
+  { "id": "lipstick", "name": "Son xinh", "emoji": "💄", "color": "#e7def6" },
+  { "id": "surprise", "name": "Quà bí mật", "emoji": "🎁", "color": "#dceef3" }
+]

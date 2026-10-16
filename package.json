@@ -1,0 +1,6 @@
+{
+  "name": "lucky-bloom", "version": "1.0.0", "private": true, "type": "module",
+  "description": "Vòng quay may mắn cute: tài khoản, 3 lượt quay, chọn quà và trang quản trị.",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": { "start": "node --env-file-if-exists=.env server.mjs", "test": "node --test", "check": "node --check server.mjs && node --check public/app.js && node --check public/admin.js" }
+}
