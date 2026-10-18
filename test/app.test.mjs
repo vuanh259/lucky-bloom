@@ -20,7 +20,7 @@ function client(server, initialCookie = '') {
     request.cookie = cookie;
     return { status: res.status, data: await res.json(), headers: res.headers };
   };
-  return request;
+  request.server=server; return request;
 }
 const register = (api, name = 'Linh dễ thương', gender = 'female') => api('join', { name, gender });
 
@@ -117,6 +117,9 @@ test('male visitor can return home and enter again, without resetting female tur
 });
 
 async function completeSpins(api) {
+  // These receiving tests require a cash-eligible result, independent of random luck.
+  const admin=client(api.server);await admin('admin/login',{password:'test-admin-password'});
+  const structure=(await admin('admin/prizes')).data;await admin('admin/prizes',{items:structure.map(p=>({...p,quantity:p.id==='encourage'?1:0}))});
   await register(api);
   for (let i = 0; i < 3; i++) await api('spin', {});
   const player = (await api('me')).data;
@@ -126,7 +129,7 @@ async function completeSpins(api) {
 async function setValues(admin, amount = 50000) {
   await admin('admin/login', { password: 'test-admin-password' });
   const gifts = (await admin('admin/gift-values')).data;
-  return admin('admin/gift-values', { items: gifts.map(g => ({ id: g.id, amount })) });
+  return admin('admin/gift-values', { items: gifts.map(g => ({ id: g.id, amount:g.id==='surprise'?null:amount })) });
 }
 test('delivery requires a choice and valid contact details; saves once and is private', async t => {
   const server = await serve(t), visitor = client(server), stranger = client(server), admin = client(server);
@@ -183,8 +186,8 @@ test('QR accepts only bounded image data and allows only owner or admin to read'
 test('leaderboard exposes only prize aggregates and sorts by configured value', async t => {
   const server = await serve(t), visitor = client(server), admin = client(server);
   const before = await visitor('leaderboard');
-  assert.equal(before.status, 200); assert.equal(before.data.length, 6);
-  assert.ok(before.data.every(row => row.value >= 10000 && row.value <= 50000 && row.count === 0));
+  assert.equal(before.status, 200); assert.equal(before.data.length, 20);
+  assert.ok(before.data.every(row => (row.value===null || row.value===0 || row.value >= 1000 && row.value <= 100000) && row.count === 0));
   await completeSpins(visitor);
   await visitor('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử riêng tư' });
   const board = (await client(server)('leaderboard')).data;
@@ -217,7 +220,7 @@ test('name and gender replay returns results without private payment data or mut
 test('public prize structure has quantities only; only admin can configure it; pages serve', async t => {
   const server=await serve(t), guest=client(server), admin=client(server);
   const prizes=(await guest('prizes')).data;
-  assert.deepEqual(prizes.map(p=>p.quantity),[2,3,5,10,20]);
+  assert.deepEqual(prizes.map(p=>p.quantity),[2,3,10,20,60]);
   assert.ok(prizes.every(p=>Object.keys(p).sort().join(',')==='id,label,quantity'));
   assert.equal((await guest('admin/prizes',{items:prizes})).status,401);
   await admin('admin/login',{password:'test-admin-password'});
@@ -256,4 +259,13 @@ test('gift can change before receiving is submitted; shipping, bank and QR submi
     assert.equal((await owner('choose',{spinId:other.spins[0].id})).status,400);
     assert.equal((await admin('admin/players')).data.find(row=>row.id===p.id).choice.spin_id,p.spins[1].id);
   }
+});
+
+test('special gift cannot be converted even through admin configuration',async t=>{
+ const server=await serve(t),admin=client(server),owner=client(server);await admin('admin/login',{password:'test-admin-password'});
+ const structure=(await admin('admin/prizes')).data;await admin('admin/prizes',{items:structure.map(p=>({...p,quantity:p.id==='special'?1:0}))});
+ const catalog=(await admin('admin/gift-values')).data;assert.equal(catalog.length,20);assert.equal(catalog.find(g=>g.id==='surprise').cashValue,null);
+ assert.equal((await admin('admin/gift-values',{items:catalog.map(g=>({id:g.id,amount:g.id==='surprise'?1000:g.cashValue}))})).status,400);
+ await register(owner);for(let i=0;i<3;i++)await owner('spin',{});const state=(await owner('me')).data;assert.ok(state.spins.every(s=>s.gift.id==='surprise'));
+ await owner('choose',{spinId:state.spins[0].id});assert.equal((await owner('fulfillment',{mode:'cash',expectedAmount:1000})).status,400);
 });

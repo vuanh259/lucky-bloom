@@ -43,7 +43,7 @@ async function loadValues() {
   valueGifts = await api('gift-values'); $('value-fields').replaceChildren();
   for (const gift of valueGifts) {
     const label = document.createElement('label'); label.textContent = `${gift.emoji} ${gift.name} (VNĐ)`;
-    const input = document.createElement('input'); input.type = 'number'; input.min = '1000'; input.max = '1000000000'; input.step = '1'; input.placeholder = 'Chưa bật quy đổi'; input.value = gift.cashValue ?? ''; input.dataset.gift = gift.id; label.append(input); $('value-fields').append(label);
+    const input = document.createElement('input'); input.type = 'number'; input.min = '1000'; input.max = '1000000000'; input.step = '1'; input.placeholder = 'Chưa bật quy đổi'; input.value = gift.cashValue ?? ''; if(gift.tier==='special'||gift.id==='surprise'){input.disabled=true;input.value='';input.placeholder='Không quy đổi';} input.dataset.gift = gift.id; label.append(input); $('value-fields').append(label);
   }
 }
 $('value-form').onsubmit = async event => {

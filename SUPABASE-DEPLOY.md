@@ -21,3 +21,10 @@ npm test
 npm run build:pages
 
 Người dùng nhập tên và giới tính, không đăng ký. Nhập lại cùng tên chỉ xem được kết quả; thông tin nhận quà riêng tư cần phiên sở hữu hoặc quyền quản trị. Sau khi gửi phương thức nhận quà sẽ khóa đổi quà ở máy chủ. Trang quản trị: /lucky-bloom/admin.html.
+
+## Danh sách quà 18/10
+
+Database mới cần chạy cả hai migration theo thứ tự tên file. Database đã chạy bản đầu chỉ áp dụng 202610180001_gift_catalog.sql một lần. Migration giữ nguyên hồ sơ, kết quả và thông tin nhận quà; các món ngừng quay được giữ trong database để xem lại.
+
+Trọng số loại giải lấy từ cơ cấu: 2 : 3 : 10 : 20 : 60. Chọn loại giải trước, rồi chọn đều các món trong loại đó. Số lượng đang dùng làm trọng số, không phải tồn kho tự giảm. Mỗi loại có một màu riêng. Giải đặc biệt không thể bật quy đổi ở quản trị.
+

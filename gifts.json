@@ -1,44 +1,162 @@
 [
   {
-    "id": "bear",
-    "name": "Gấu bông",
-    "emoji": "🧸",
-    "color": "#ffd6de",
-    "cashValue": 50000
-  },
-  {
-    "id": "tea",
-    "name": "Trà sữa",
-    "emoji": "🧋",
-    "color": "#fff0c9",
-    "cashValue": 10000
+    "id": "surprise",
+    "name": "Được yêu cầu 1 món quà bất kì từ ban tổ chức hoặc nhờ mình một việc (trong khả năng của tôi)",
+    "emoji": "🎁",
+    "color": "#ffe29a",
+    "tier": "special",
+    "cashValue": null
   },
   {
     "id": "flowers",
     "name": "Bó hoa",
     "emoji": "💐",
-    "color": "#dcebd5",
+    "color": "#ffc4d6",
+    "tier": "first",
+    "cashValue": 100000
+  },
+  {
+    "id": "bear",
+    "name": "Gấu bông",
+    "emoji": "🧸",
+    "color": "#ffc4d6",
+    "tier": "first",
+    "cashValue": 100000
+  },
+  {
+    "id": "candy-bouquet",
+    "name": "Bó hoa kẹo mút",
+    "emoji": "💐",
+    "color": "#d9ccff",
+    "tier": "second",
     "cashValue": 30000
   },
   {
-    "id": "cake",
-    "name": "Bánh ngọt",
-    "emoji": "🍰",
-    "color": "#fbdce8",
-    "cashValue": 20000
+    "id": "snack-bag",
+    "name": "Bịch bimbim",
+    "emoji": "🍿",
+    "color": "#d9ccff",
+    "tier": "second",
+    "cashValue": 30000
   },
   {
-    "id": "lipstick",
-    "name": "Son xinh",
-    "emoji": "💄",
-    "color": "#e7def6",
-    "cashValue": 40000
+    "id": "mini-lego",
+    "name": "Mô hình lego mini",
+    "emoji": "🧱",
+    "color": "#d9ccff",
+    "tier": "second",
+    "cashValue": 30000
   },
   {
-    "id": "surprise",
-    "name": "Quà bí mật",
-    "emoji": "🎁",
-    "color": "#dceef3",
-    "cashValue": 50000
+    "id": "keychain",
+    "name": "Móc khóa",
+    "emoji": "🔑",
+    "color": "#d9ccff",
+    "tier": "second",
+    "cashValue": 30000
+  },
+  {
+    "id": "tea",
+    "name": "Trà sữa",
+    "emoji": "🧋",
+    "color": "#d9ccff",
+    "tier": "second",
+    "cashValue": 30000
+  },
+  {
+    "id": "mini-mirror",
+    "name": "Gương mini",
+    "emoji": "🪞",
+    "color": "#d9ccff",
+    "tier": "second",
+    "cashValue": 30000
+  },
+  {
+    "id": "hairclip",
+    "name": "Kẹp tóc",
+    "emoji": "🎀",
+    "color": "#bfe9dd",
+    "tier": "third",
+    "cashValue": 10000
+  },
+  {
+    "id": "hairtie",
+    "name": "Dây buộc tóc",
+    "emoji": "🎀",
+    "color": "#bfe9dd",
+    "tier": "third",
+    "cashValue": 10000
+  },
+  {
+    "id": "phone-case",
+    "name": "Ốp điện thoại",
+    "emoji": "📱",
+    "color": "#bfe9dd",
+    "tier": "third",
+    "cashValue": 10000
+  },
+  {
+    "id": "single-flower",
+    "name": "Bông hoa",
+    "emoji": "🌷",
+    "color": "#bfe9dd",
+    "tier": "third",
+    "cashValue": 10000
+  },
+  {
+    "id": "mini-comb",
+    "name": "Lược mini",
+    "emoji": "🪮",
+    "color": "#bfe9dd",
+    "tier": "third",
+    "cashValue": 10000
+  },
+  {
+    "id": "mini-notebook",
+    "name": "Cuốn sổ tay mini",
+    "emoji": "📒",
+    "color": "#bfe9dd",
+    "tier": "third",
+    "cashValue": 10000
+  },
+  {
+    "id": "one-lollipop",
+    "name": "1 cái kẹo mút",
+    "emoji": "🍭",
+    "color": "#cbe5ff",
+    "tier": "encourage",
+    "cashValue": 1000
+  },
+  {
+    "id": "three-lollipops",
+    "name": "3 cái kẹo mút",
+    "emoji": "🍭",
+    "color": "#cbe5ff",
+    "tier": "encourage",
+    "cashValue": 3000
+  },
+  {
+    "id": "snack-pack",
+    "name": "1 gói bimbim",
+    "emoji": "🍿",
+    "color": "#cbe5ff",
+    "tier": "encourage",
+    "cashValue": 5000
+  },
+  {
+    "id": "mini-hairclip",
+    "name": "Kẹp tóc mini",
+    "emoji": "🎀",
+    "color": "#cbe5ff",
+    "tier": "encourage",
+    "cashValue": 5000
+  },
+  {
+    "id": "candy-pack",
+    "name": "1 phong kẹo",
+    "emoji": "🍬",
+    "color": "#cbe5ff",
+    "tier": "encourage",
+    "cashValue": 5000
   }
 ]

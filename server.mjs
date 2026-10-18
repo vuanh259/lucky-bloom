@@ -20,13 +20,16 @@ export function createApp(options = {}) {
     CREATE TABLE IF NOT EXISTS spins(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), turn INTEGER NOT NULL CHECK(turn BETWEEN 1 AND 3), gift TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id,turn));
     CREATE TABLE IF NOT EXISTS choices(user_id INTEGER PRIMARY KEY REFERENCES users(id), spin_id INTEGER NOT NULL UNIQUE REFERENCES spins(id), created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   const gifts = JSON.parse(readFileSync(join(root, 'gifts.json'), 'utf8'));
-  if (!Array.isArray(gifts) || gifts.length < 2 || gifts.length > 12 || gifts.some(g => !g.id || !g.name || !/^#[0-9a-f]{6}$/i.test(g.color))) throw new Error('gifts.json không hợp lệ');
+  if (!Array.isArray(gifts) || gifts.length < 2 || gifts.length > 100 || gifts.some(g => !g.id || !g.name || !/^#[0-9a-f]{6}$/i.test(g.color))) throw new Error('gifts.json không hợp lệ');
   const receiving = setupFulfillment(db, gifts);
   db.exec('CREATE TABLE IF NOT EXISTS prize_structure(id TEXT PRIMARY KEY, label TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>=0))');
-  const defaultPrizes = [['special','Giải đặc biệt',2],['first','Giải nhất',3],['second','Giải nhì',5],['third','Giải ba',10],['encourage','Giải khuyến khích',20]];
+  const defaultPrizes = [["special","Giải đặc biệt",2],["first","Giải nhất",3],["second","Giải nhì",10],["third","Giải ba",20],["encourage","Giải lắt nhắt",60]];
   for (const prize of defaultPrizes) db.prepare('INSERT OR IGNORE INTO prize_structure VALUES(?,?,?)').run(...prize);
   const tierByGift = { surprise:'special', bear:'first', lipstick:'second', flowers:'third', cake:'encourage', tea:'encourage' };
   function prizeStructure() { return defaultPrizes.map(([id]) => db.prepare('SELECT * FROM prize_structure WHERE id=?').get(id)); }
+  if(!db.prepare('SELECT 1 FROM app_settings WHERE key=?').get('catalog_20261018')){
+    db.exec('BEGIN IMMEDIATE');try{for(const g of gifts){db.prepare('DELETE FROM gift_values WHERE gift_id=?').run(g.id);if(g.cashValue)db.prepare('INSERT INTO gift_values VALUES(?,?)').run(g.id,g.cashValue);}for(const p of defaultPrizes)db.prepare('UPDATE prize_structure SET label=?,quantity=? WHERE id=?').run(p[1],p[2],p[0]);db.prepare('INSERT INTO app_settings VALUES(?,?)').run('catalog_20261018','true');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+  }
   const nameKey = name => name.normalize('NFC').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi-VN');
   function viewState(req) {
     let current;
@@ -101,7 +104,7 @@ export function createApp(options = {}) {
         }
         if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'Chỉ chấp nhận JSON.');
       }
-      if (path === '/api/gifts' && req.method === 'GET') return json(receiving.catalog().map(g => ({...g,tier:tierByGift[g.id] || 'encourage'})));
+      if (path === '/api/gifts' && req.method === 'GET') return json(receiving.catalog().map(g => ({...g,tier:g.tier || tierByGift[g.id] || 'encourage'})));
       if (path === '/api/prizes' && req.method === 'GET') return json(prizeStructure());
       if (path === '/api/admin/prizes' && req.method === 'GET') { session(req,'admin'); return json(prizeStructure()); }
       if (path === '/api/admin/prizes' && req.method === 'POST') {
@@ -176,7 +179,10 @@ export function createApp(options = {}) {
         try {
           const count = db.prepare('SELECT COUNT(*) AS n FROM spins WHERE user_id=?').get(id).n;
           if (count >= 3) throw fail(409, 'Bạn đã dùng hết 3 lượt quay rồi.');
-          const gift = gifts[randomInt(gifts.length)];
+          const available=prizeStructure().filter(p=>p.quantity>0&&gifts.some(g=>g.tier===p.id));
+          const total=available.reduce((n,p)=>n+p.quantity,0);if(!total)throw fail(409,'Vòng quay chưa có giải khả dụng.');
+          let pick=randomInt(total),tier;for(const p of available){pick-=p.quantity;if(pick<0){tier=p.id;break;}}
+          const options=gifts.filter(g=>g.tier===tier),gift=options[randomInt(options.length)];
           db.prepare('INSERT INTO spins(user_id,turn,gift) VALUES(?,?,?)').run(id, count + 1, JSON.stringify(gift));
           db.exec('COMMIT');
         } catch (e) { db.exec('ROLLBACK'); throw e; }

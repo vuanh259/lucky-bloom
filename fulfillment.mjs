@@ -11,7 +11,7 @@ export function setupFulfillment(db, gifts) {
       db.prepare('INSERT INTO app_settings VALUES(?,?)').run('gift_values_initialized', 'true'); db.exec('COMMIT');
     } catch (e) { db.exec('ROLLBACK'); throw e; }
   }
-  function value(id) { return db.prepare('SELECT amount FROM gift_values WHERE gift_id=?').get(id)?.amount ?? null; }
+  function value(id) { if(id==='surprise')return null; return db.prepare('SELECT amount FROM gift_values WHERE gift_id=?').get(id)?.amount ?? null; }
   function catalog() { return gifts.map(g => ({ ...g, cashValue: value(g.id) })); }
   function record(id) {
     const row = db.prepare('SELECT mode,details,cash_amount,qr_mime,created_at FROM fulfillment WHERE user_id=?').get(id);
@@ -19,6 +19,7 @@ export function setupFulfillment(db, gifts) {
   }
   function configure(items) {
     if (!Array.isArray(items) || items.length !== gifts.length || new Set(items.map(i => i?.id)).size !== gifts.length) throw error('Hãy cấu hình đầy đủ danh sách quà.');
+    for (const item of items) if (item?.id==='surprise'&&item.amount!==null) throw error('Giải đặc biệt không được quy đổi.');
     for (const item of items) if (!gifts.some(g => g.id === item?.id) || (item.amount !== null && (!Number.isSafeInteger(item.amount) || item.amount < 1000 || item.amount > 1000000000))) throw error('Giá trị quy đổi phải từ 1.000 đến 1.000.000.000 đồng, hoặc để trống để tắt.');
     db.exec('BEGIN IMMEDIATE');
     try {

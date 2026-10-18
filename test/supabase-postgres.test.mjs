@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {createHandler} from '../supabase/functions/lucky-bloom/handler.js';
+import {createHandler,pickGiftIndex} from '../supabase/functions/lucky-bloom/handler.js';
 
 test('Supabase/PostgreSQL migration enforces three spins, private replay, editable then locked gifts and admin privileges',async()=>{
  const db=new PGlite();
@@ -30,6 +30,18 @@ test('Supabase/PostgreSQL migration enforces three spins, private replay, editab
   await assert.rejects(db.query("select public.lb_api('gifts')"));await db.exec('reset role');
   await db.exec('set role authenticated');await assert.rejects(db.query('select * from lucky_bloom.receiving'));await db.exec('reset role');
   assert.equal((await db.query("select public from storage.buckets where id='kk'")).rows[0].public,false);
+  await db.exec(readFileSync(new URL('../supabase/migrations/202610180001_gift_catalog.sql',import.meta.url),'utf8'));
+  const catalog=await rpc('gifts');assert.equal(catalog.length,20);assert.deepEqual((await rpc('prizes')).map(p=>p.quantity),[2,3,10,20,60]);
+  assert.equal((await rpc('me',{},owner)).spins.length,3);assert.equal((await rpc('me',{},owner)).fulfillment.phone,'0900000000');
+  for(const tier of ['special','first','second','third','encourage'])assert.equal(new Set(catalog.filter(g=>g.tier===tier).map(g=>g.color)).size,1);
+  assert.equal(new Set(catalog.map(g=>g.color)).size,5);assert.equal(catalog.find(g=>g.id==='surprise').cashValue,null);
+  assert.equal((await rpc('admin-values',{items:catalog.map(g=>({id:g.id,amount:g.id==='surprise'?1000:g.cashValue}))},admin)).status,400);
+  assert.ok(!(await rpc('admin-prizes',{items:await rpc('prizes')},admin)).error);
+  const special='d'.repeat(64);await rpc('join',{name:'Special test',name_key:'special test',gender:'female',new_hash:special});
+  const index=catalog.findIndex(g=>g.id==='surprise');for(let i=0;i<3;i++)await rpc('spin',{random_index:index},special);
+  const specialState=await rpc('me',{},special);assert.ok(specialState.spins.every(s=>s.gift.id==='surprise'));
+  await rpc('choose',{spinId:specialState.spins[0].id},special);
+  assert.equal((await rpc('receive',{mode:'cash',expectedSpinId:specialState.spins[0].id,expectedAmount:1000},special)).status,400);
  }finally{await db.close();}
 });
 
@@ -44,4 +56,11 @@ test('Edge handler rejects forbidden origins, bad admin password and SVG uploads
  assert.equal((await handler(req('fulfillment',{mode:'cash',method:'qr',qrData:'data:image/svg+xml;base64,PHN2Zz4='}))).status,400);
  assert.ok(!calls.some(c=>c.url.includes('/storage/')));
  assert.ok(!JSON.stringify(await (await handler(req('gifts'))).json()).includes(env.SUPABASE_SERVICE_ROLE_KEY));
+});
+
+test('tier weights follow 2:3:10:20:60 independently of gift counts',()=>{
+ const catalog=JSON.parse(readFileSync(new URL('../gifts.json',import.meta.url),'utf8'));
+ const weights={special:2,first:3,second:10,third:20,encourage:60},prizes=Object.entries(weights).map(([id,quantity])=>({id,quantity})),counts=Object.fromEntries(Object.keys(weights).map(id=>[id,0]));
+ for(let ticket=0;ticket<95;ticket++){let call=0;const i=pickGiftIndex(catalog,prizes,n=>call++===0?ticket:0);counts[catalog[i].tier]++;}
+ assert.deepEqual(counts,weights);assert.equal(pickGiftIndex(catalog,prizes.map(p=>({...p,quantity:0})),()=>0),-1);
 });

@@ -1,3 +1,8 @@
+export function pickGiftIndex(catalog,prizes,randomInt){
+ const tiers=prizes.filter(p=>p.quantity>0&&catalog.some(g=>g.tier===p.id));const total=tiers.reduce((n,p)=>n+p.quantity,0);if(!total)return -1;
+ let pick=randomInt(total),tier;for(const p of tiers){pick-=p.quantity;if(pick<0){tier=p.id;break;}}
+ const options=catalog.map((g,i)=>({g,i})).filter(x=>x.g.tier===tier);return options[randomInt(options.length)].i;
+}
 const hash = async value => [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const token = () => [...crypto.getRandomValues(new Uint8Array(32))].map(b=>b.toString(16).padStart(2,'0')).join('');
 function validImage(data){
@@ -65,14 +70,16 @@ export function createHandler(env,fetcher=fetch){
         sessionToken=token();payload={name,name_key:name.toLocaleLowerCase('vi-VN'),gender:payload.gender,new_hash:await hash(sessionToken)};
       }
       if(route==='spin'){
-        // Rejection sampling prevents modulo bias and never trusts a client-selected prize.
-        const gifts=await rpc('gifts');const n=gifts.length,limit=Math.floor(4294967296/n)*n;let value;
-        do{value=crypto.getRandomValues(new Uint32Array(1))[0];}while(value>=limit);
-        payload={random_index:value%n};
+        const catalog=await rpc('gifts'),prizes=await rpc('prizes');
+        const randomInt=n=>{const limit=Math.floor(4294967296/n)*n;let v;do{v=crypto.getRandomValues(new Uint32Array(1))[0];}while(v>=limit);return v%n;};
+        const index=pickGiftIndex(catalog,prizes,randomInt);
+        if(index<0)return json({error:'Vòng quay chưa có giải khả dụng. Liên hệ người tổ chức nhé.'},409);
+        payload={random_index:index};
       }
       let uploaded=null;
       if(route==='receive'){
         payload={...payload};delete payload.qr_path;
+        if(payload.mode==='cash'){const state=await rpc('me',{},tokenHash);const gift=state.spins?.find(s=>s.id===state.choice?.spin_id)?.gift;if(gift?.tier==='special'||gift?.id==='surprise')return json({error:'Giải đặc biệt không được quy đổi.'},400);}
         if(payload.mode==='cash'&&payload.method==='qr'){
           const state=await rpc('me',{},tokenHash);
           if(state.error)return json({error:state.error},state.status);

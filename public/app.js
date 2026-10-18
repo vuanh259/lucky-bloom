@@ -3,19 +3,19 @@ let gifts = [], user = null, selected = null, spinning = false, rotation = 0;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 async function api(path,data) { return LuckyBloom.request(path,data); }
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 4500); }
+const tierNames={special:'Đặc biệt',first:'Giải nhất',second:'Giải nhì',third:'Giải ba',encourage:'Lắt nhắt'};
+function wheelSegments(){const total=structure.reduce((n,p)=>n+p.quantity,0)||1;let start=0;return structure.filter(p=>p.quantity>0&&gifts.some(g=>g.tier===p.id)).map(p=>{const item={...p,start,arc:p.quantity/total*Math.PI*2,color:gifts.find(g=>g.tier===p.id).color};start+=item.arc;return item;});}
 function drawWheel() {
-  const canvas = $('wheel'), ctx = canvas.getContext('2d'), size = canvas.width, c = size / 2, r = c - 4, arc = Math.PI * 2 / gifts.length;
-  ctx.clearRect(0, 0, size, size);
-  gifts.forEach((gift, i) => {
-    const start = -Math.PI / 2 + i * arc;
-    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, r, start, start + arc); ctx.closePath(); ctx.fillStyle = gift.color; ctx.fill();
-    ctx.strokeStyle = '#fff9ef'; ctx.lineWidth = 4; ctx.stroke();
-    ctx.save(); ctx.translate(c, c); ctx.rotate(start + arc / 2); ctx.translate(r * .69, 0); ctx.rotate(Math.PI / 2);
-    ctx.textAlign = 'center'; ctx.fillStyle = '#6b5149'; ctx.font = '54px "Segoe UI Emoji", sans-serif'; ctx.fillText(gift.emoji, 0, 0);
-    ctx.font = '500 23px "Segoe UI", sans-serif'; ctx.fillText(gift.name, 0, 40); ctx.restore();
-  });
-  for (let i = 0; i < 36; i++) { const a = i * Math.PI * 2 / 36; ctx.beginPath(); ctx.arc(c + Math.cos(a) * (r - 14), c + Math.sin(a) * (r - 14), 3.4, 0, Math.PI * 2); ctx.fillStyle = '#fff9ef'; ctx.fill(); }
+ const canvas=$('wheel'),ctx=canvas.getContext('2d'),c=canvas.width/2,r=c-4;ctx.clearRect(0,0,canvas.width,canvas.height);
+ for(const tier of wheelSegments()){
+  const start=-Math.PI/2+tier.start;ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,start,start+tier.arc);ctx.closePath();ctx.fillStyle=tier.color;ctx.fill();ctx.strokeStyle='#fff9ef';ctx.lineWidth=4;ctx.stroke();
+  ctx.save();ctx.translate(c,c);ctx.rotate(start+tier.arc/2);ctx.translate(r*.7,0);ctx.rotate(Math.PI/2);ctx.textAlign='center';ctx.fillStyle='#523e3b';ctx.font='600 '+(tier.arc<.25?18:29)+'px "Segoe UI",sans-serif';ctx.fillText(tierNames[tier.id],0,0);ctx.restore();
+ }
+ canvas.setAttribute('aria-label','Vòng quay 5 loại giải. Màu và tỉ lệ theo cơ cấu giải thưởng.');
+ $('wheel-legend').replaceChildren();for(const p of wheelSegments()){const badge=document.createElement('span');badge.className='tier-badge';badge.style.backgroundColor=p.color;badge.textContent=p.label;$('wheel-legend').append(badge);}
 }
+function showSpinResult(gift){$('spin-result-icon').textContent=gift.emoji;$('spin-result-name').textContent=gift.name;$('spin-result-tier').textContent=structure.find(p=>p.id===gift.tier)?.label||'Phần quà';$('spin-result-tier').style.backgroundColor=gift.color;$('spin-result-dialog').showModal();}
+
 function render() {
   $('welcome').hidden = false; $('play').hidden = !user; $('account').replaceChildren();
   const male = user?.gender === 'male'; $('bye').hidden = !male;
@@ -30,6 +30,7 @@ function render() {
   $('turns').replaceChildren();
   for (let i = 0; i < 3; i++) { const el = document.createElement('div'); el.className = 'turn-chip' + (i < user.spins.length ? ' used' : ''); el.textContent = i < user.spins.length ? '✓ Lượt ' + (i + 1) : '✧ Lượt ' + (i + 1); $('turns').append(el); }
   $('spin').hidden = !user.remaining || user.readOnly; $('spin').disabled = spinning;
+  $('spin-mobile').hidden=$('spin').hidden;$('spin-mobile').disabled=spinning;$('spin-mobile').textContent=spinning?'May mắn đang đến…':`Quay nào! ✧ · Còn ${user.remaining} lượt`;
   $('result-count').textContent = `${user.spins.length} / 3`;
   $('selection-hint').textContent = user.choice ? user.fulfillment ? 'Đã gửi thông tin nhận. Món quà đã được khóa và không thể đổi nữa.' : user.readOnly ? 'Bạn đang xem lại món quà đã chọn.' : 'Bạn có thể đổi quà trước khi gửi thông tin nhận.' : user.remaining ? 'Quay đủ 3 lượt rồi chọn món bạn yêu nhất nhé.' : 'Chạm vào một món quà, rồi bấm chốt để xác nhận.';
   $('results').replaceChildren();
@@ -38,7 +39,7 @@ function render() {
     const isSelected = (selected ?? user.choice?.spin_id) === spin.id;
     const button = document.createElement('button'); button.className = 'gift-option' + (isSelected ? ' selected' : ''); button.disabled = !!user.remaining || spinning || user.readOnly || !!user.fulfillment; button.setAttribute('aria-pressed', String(isSelected));
     const icon = document.createElement('span'); icon.className = 'gift-icon'; icon.textContent = spin.gift.emoji;
-    const text = document.createElement('span'), title = document.createElement('strong'), sub = document.createElement('small'); title.textContent = spin.gift.name; sub.textContent = 'Kết quả lượt ' + spin.turn; text.append(title, sub);
+    const text = document.createElement('span'), title = document.createElement('strong'), sub = document.createElement('small'); title.textContent = spin.gift.name; sub.textContent = (structure.find(p=>p.id===spin.gift.tier)?.label||'Phần quà')+' · Lượt '+spin.turn; button.style.borderLeft='6px solid '+(gifts.find(g=>g.id===spin.gift.id)?.color||spin.gift.color); text.append(title, sub);
     const check = document.createElement('span'); check.className = 'check'; check.textContent = isSelected ? '♥' : '○'; button.append(icon, text, check);
     button.onclick = () => { selected = spin.id; render(); }; $('results').append(button);
   });
@@ -64,14 +65,14 @@ $('auth-form').onsubmit = async event => {
   finally { $('auth-submit').disabled = false; }
 };
 $('spin').onclick = async () => {
-  if (spinning) return; spinning = true; $('spin').disabled = true; $('spin').textContent = 'May mắn đang đến…'; $('play-error').textContent = '';
+  if (spinning) return; spinning = true; $('spin-mobile').disabled=true;$('spin-mobile').textContent='May mắn đang đến…'; $('spin').disabled = true; $('spin').textContent = 'May mắn đang đến…'; $('play-error').textContent = '';
   try {
-    const next = await api('spin', {}), result = next.spins.at(-1), index = gifts.findIndex(g => g.id === result.gift.id), segment = 360 / gifts.length;
-    const target = (360 - (index + .5) * segment) % 360;
-    rotation += 360 * 5 + (target - rotation % 360 + 360) % 360;
-    $('wheel').style.transform = `rotate(${rotation}deg)`;
-    await new Promise(resolve => setTimeout(resolve, reduceMotion ? 60 : 4300));
-    user = next; toast(`${result.gift.emoji} Bạn quay được ${result.gift.name}!`);
+    const next=await api('spin',{}),result=next.spins.at(-1),tier=wheelSegments().find(p=>p.id===result.gift.tier);
+    const target=(360-(tier.start+tier.arc/2)*180/Math.PI)%360;
+    rotation+=360*8+(target-rotation%360+360)%360;
+    $('wheel').style.transform=`rotate(${rotation}deg)`;
+    await new Promise(resolve=>setTimeout(resolve,reduceMotion?60:7300));
+    user=next;showSpinResult(result.gift);
     document.body.classList.add('celebrate'); setTimeout(() => document.body.classList.remove('celebrate'), 1900);
   } catch (e) {
     $('play-error').textContent = e.message;
@@ -105,12 +106,12 @@ $('gift-confirm-save').onclick = async () => {
 };
 async function init() {
   try {
-    gifts = await api('gifts'); drawWheel();
-    structure = await api('prizes');
+    gifts = await api('gifts');
+    structure = await api('prizes'); drawWheel();
     for (const prize of structure) { const option=document.createElement('option'); option.value=prize.id; option.textContent=prize.label; $('prizes-filter').append(option); }
     prizePage=Number(new URLSearchParams(LuckyBloom.search()).get('page'))||1;
     try { user=await api('me'); } catch(e) { if(e.status!==401)throw e; }
-    render();
+    render(); if(LuckyBloom.path()==='/wheel')scrollToWheel();
   } catch (e) { $('auth-error').textContent = e.message || 'Chưa kết nối được máy chủ. Hãy tải lại trang.'; $('auth-submit').disabled = true; }
 }
 const money = value => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
@@ -121,9 +122,11 @@ function renderReceiving() {
   $('receive-summary').hidden = !active || !user?.fulfillment;
   if (!active) return;
   const gift = user.spins.find(s => s.id === user.choice.spin_id).gift;
-  $('cash-mode').disabled = !gift.cashValue;
-  if (!gift.cashValue && $('cash-mode').checked) document.querySelector('[name=mode][value=gift]').checked = true;
-  $('cash-value').textContent = gift.cashValue ? `Giá trị tương đương của ${gift.name}: ${money(gift.cashValue)}` : 'Món quà này chưa được người tổ chức đặt giá trị quy đổi. Bạn vẫn có thể chọn nhận quà.';
+  const noCash=gift.tier==='special'||gift.id==='surprise'||!gift.cashValue;
+  $('cash-mode').disabled = noCash; $('cash-mode').closest('label').hidden=noCash;
+  $('address-note').textContent=gift.id==='phone-case'?'♡ Nhập địa chỉ shipper có thể giao tới và ghi rõ loại máy điện thoại bạn đang dùng để nhận đúng ốp.':'♡ Nhập địa chỉ mà shipper có thể giao hàng tới được nhé.';
+  if (noCash && $('cash-mode').checked) document.querySelector('[name=mode][value=gift]').checked = true;
+  $('cash-value').textContent = !noCash ? `Giá trị tương đương của ${gift.name}: ${money(gift.cashValue)}` : 'Món quà này chỉ nhận quà, không áp dụng quy đổi tiền.';
   syncReceiving();
   const f = user.fulfillment;
   if (!f) return;
@@ -175,8 +178,9 @@ let structure = [], prizePage = 1;
 const pageSize = 4;
 function navigate(path) {
   if(path.startsWith('/prizes')) prizePage=Number(new URL(path,location.origin).searchParams.get('page'))||1;
-  LuckyBloom.navigate(path); render(); window.scrollTo({top:0,behavior:reduceMotion?'instant':'smooth'});
+  LuckyBloom.navigate(path); render(); if(path==='/wheel')scrollToWheel();else window.scrollTo({top:0,behavior:reduceMotion?'instant':'smooth'});
 }
+function scrollToWheel(){requestAnimationFrame(()=>$('wheel-tools').scrollIntoView({block:'start',behavior:reduceMotion?'instant':'smooth'}));}
 function openReceiving() {
   if (!user?.choice) return;
   renderReceiving(); if (!$('receive-dialog').open) $('receive-dialog').showModal();
@@ -188,6 +192,7 @@ function openCelebration() {
 }
 function renderPages() {
   let path = LuckyBloom.path();
+  document.body.classList.toggle('on-wheel',path==='/wheel');
   if (path === '/wheel' && !user) { LuckyBloom.navigate('/',true); path='/'; }
   $('entry-page').hidden = path !== '/';
   $('wheel-page').hidden = path !== '/wheel';
@@ -200,7 +205,7 @@ function renderPages() {
   $('review-banner').hidden = !user?.readOnly || path !== '/wheel';
   $('prizes-back').textContent = user?.gender === 'female' ? '← Về vòng quay' : '← Về trang chủ';
   $('structure-list').replaceChildren();
-  for (const prize of structure) { const row=document.createElement('div'); row.className='structure-row'; const title=document.createElement('span'); title.textContent=prize.label; const count=document.createElement('strong'); count.textContent=prize.quantity+' giải'; row.append(title,count); $('structure-list').append(row); }
+  for (const prize of structure) { const row=document.createElement('div'); row.className='structure-row';row.style.borderLeft='5px solid '+(gifts.find(g=>g.tier===prize.id)?.color||'#eee'); const title=document.createElement('span'); title.textContent=prize.label; const count=document.createElement('strong'); count.textContent=prize.quantity+' giải'; row.append(title,count); $('structure-list').append(row); }
   renderPrizes();
 }
 function renderPrizes() {
@@ -212,7 +217,7 @@ function renderPrizes() {
     const card=document.createElement('article'); card.className='prize-card'; card.style.backgroundColor=gift.color;
     const icon=document.createElement('span'); icon.className='prize-card-icon'; icon.textContent=gift.emoji;
     const label=document.createElement('small'); label.textContent=structure.find(p=>p.id===gift.tier)?.label || 'Phần quà';
-    const name=document.createElement('h3'); name.textContent=gift.name; card.append(icon,label,name); $('prize-cards').append(card);
+    const name=document.createElement('h3'); name.textContent=gift.name; const value=document.createElement('p');value.className='gift-value';value.textContent=gift.tier==='special'?'Không quy đổi':gift.cashValue?money(gift.cashValue):'Chỉ nhận quà';card.append(icon,label,name,value); $('prize-cards').append(card);
   }
   $('page-status').textContent=`Trang ${prizePage} / ${pages}`;
   $('prizes-prev').disabled=prizePage===1; $('prizes-next').disabled=prizePage===pages;
@@ -230,4 +235,6 @@ $('open-receiving').onclick=openReceiving; $('open-wish').onclick=openCelebratio
 $('receive-close').onclick=()=>$('receive-dialog').close();
 $('wish-close').onclick=()=>$('wish-dialog').close();
 
+$('spin-mobile').onclick=()=>$('spin').click();
+$('spin-result-close').onclick=()=>$('spin-result-dialog').close();
 init();
