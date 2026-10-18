@@ -1,10 +1,10 @@
-import {readFileSync,writeFileSync,mkdirSync,readdirSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,readdirSync,copyFileSync} from 'node:fs';
 const basePath=(process.env.PAGES_BASE_PATH||'/lucky-bloom/').replace(/\/?$/,'/');
 const supabaseUrl=process.env.SUPABASE_URL?.replace(/\/$/,'');
 if(!supabaseUrl||!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(supabaseUrl))throw Error('Điền SUPABASE_URL=https://PROJECT_REF.supabase.co trong .env trước khi build.');
 if(!/^\/[A-Za-z0-9._-]+\/$/.test(basePath)&&basePath!=='/')throw Error('PAGES_BASE_PATH cần có dạng /lucky-bloom/ hoặc /.');
 mkdirSync('dist-pages',{recursive:true});
-const allowed=['index.html','admin.html','style.css','app.js','admin.js','api-client.js','wheel-layout.js'];
+const allowed=['index.html','admin.html','style.css','app.js','admin.js','api-client.js','wheel-layout.js','gift-art.js'];
 for(const file of allowed){
  let source=readFileSync('public/'+file,'utf8');
  if(file.endsWith('.html')){
@@ -17,6 +17,7 @@ for(const file of allowed){
 writeFileSync('dist-pages/config.js','window.LUCKY_BLOOM_CONFIG = '+JSON.stringify({supabaseUrl,basePath})+';\n');
 writeFileSync('dist-pages/.nojekyll','');
 // Fail closed if the output ever contains files beyond this static allowlist.
-const output=[...allowed,'config.js','.nojekyll'];
+const artwork=["candy-bouquet.svg","candy-pack.svg","FLUENT-LICENSE.txt","hairtie.svg","keychain.svg","lemon-tea.svg","mini-comb.svg","mini-hairclip.svg","mini-lego.svg","mini-mirror.svg","mini-notebook.svg","one-lollipop.svg","phone-case.svg","single-flower.svg","snack-bag.svg","snack-pack.svg","tea.svg","three-lollipops.svg"];mkdirSync('dist-pages/gift-art',{recursive:true});for(const file of artwork)copyFileSync('public/gift-art/'+file,'dist-pages/gift-art/'+file);if(readdirSync('dist-pages/gift-art').some(file=>!artwork.includes(file)))throw Error('Unexpected gift asset.');
+const output=[...allowed,'config.js','.nojekyll','gift-art'];
 if(readdirSync('dist-pages').some(file=>!output.includes(file)))throw Error('Unexpected file in dist-pages. Inspect it before publishing.');
 console.log('GitHub Pages frontend built. No .env, admin password, tokens, SQLite or backend source included.');

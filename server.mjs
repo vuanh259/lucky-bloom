@@ -88,6 +88,7 @@ export function createApp(options = {}) {
     ['/', ['index.html', 'text/html; charset=utf-8']], ['/bai-anh-em', ['index.html', 'text/html; charset=utf-8']],
     ['/admin', ['admin.html', 'text/html; charset=utf-8']], ['/style.css', ['style.css', 'text/css; charset=utf-8']],
     ['/api-client.js',['api-client.js','text/javascript; charset=utf-8']],['/config.js',['config.js','text/javascript; charset=utf-8']],
+    ['/gift-art.js',['gift-art.js','text/javascript; charset=utf-8']],
     ['/wheel-layout.js',['wheel-layout.js','text/javascript; charset=utf-8']],
     ['/app.js', ['app.js', 'text/javascript; charset=utf-8']], ['/admin.js', ['admin.js', 'text/javascript; charset=utf-8']]
   ]);
@@ -222,6 +223,7 @@ export function createApp(options = {}) {
         session(req, 'admin'); const players = db.prepare('SELECT id FROM users ORDER BY id DESC').all().map(u => state(u.id));
         return json(players);
       }
+      const art=/^\/gift-art\/([a-z0-9-]+\.svg)$/.exec(path);if(art&&["candy-bouquet","candy-pack","hairtie","keychain","lemon-tea","mini-comb","mini-hairclip","mini-lego","mini-mirror","mini-notebook","one-lollipop","phone-case","single-flower","snack-bag","snack-pack","tea","three-lollipops"].some(id=>id+'.svg'===art[1])){res.writeHead(200,{'Content-Type':'image/svg+xml; charset=utf-8','Cache-Control':'public,max-age=3600'});return res.end(readFileSync(join(root,'public/gift-art',art[1])));}
       const file = publicFiles.get(path);
       if (file && req.method === 'GET') { res.writeHead(200, { 'Content-Type': file[1], 'Cache-Control': 'no-cache' }); return res.end(readFileSync(join(root, 'public', file[0]))); }
       json({ error: 'Không tìm thấy trang.' }, 404);

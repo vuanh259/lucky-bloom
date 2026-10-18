@@ -1,3 +1,4 @@
+import {setGiftArt,preloadGiftArt,giftImages} from './gift-art.js';
 import {buildWheelLayout} from './wheel-layout.js';
 const $ = id => document.getElementById(id);
 let gifts = [], user = null, selected = null, spinning = false, rotation = 0;
@@ -10,13 +11,13 @@ function drawWheel(){
  const canvas=$('wheel'),ctx=canvas.getContext('2d'),c=canvas.width/2,r=c-4;ctx.clearRect(0,0,canvas.width,canvas.height);
  for(const gift of wheelSegments()){
   const start=-Math.PI/2+gift.start;ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,start,start+gift.arc);ctx.closePath();ctx.fillStyle=gift.color;ctx.fill();ctx.strokeStyle='#fff9ef';ctx.lineWidth=3;ctx.stroke();
-  ctx.save();ctx.translate(c,c);ctx.rotate(start+gift.arc/2);ctx.translate(r*.79,0);ctx.rotate(Math.PI/2);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#523e3b';ctx.font=gift.tier==='special'?'bold 62px "Segoe UI",sans-serif':'42px "Segoe UI Emoji",sans-serif';ctx.fillText(gift.tier==='special'?'?':gift.emoji,0,0,48);ctx.restore();
+  ctx.save();ctx.translate(c,c);ctx.rotate(start+gift.arc/2);ctx.translate(r*.79,0);ctx.rotate(Math.PI/2);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#523e3b';ctx.font=gift.tier==='special'?'bold 62px "Segoe UI",sans-serif':'42px "Segoe UI Emoji",sans-serif';if(gift.tier!=='special'&&giftImages.has(gift.id)){ctx.drawImage(giftImages.get(gift.id),-25,-25,50,50);}else ctx.fillText(gift.tier==='special'?'?':gift.emoji,0,0,48);ctx.restore();
  }
  canvas.setAttribute('aria-label','Vòng quay gồm '+wheelSegments().length+' ô quà xen kẽ loại giải. Giải đặc biệt là dấu hỏi.');
  $('wheel-legend').replaceChildren();for(const p of structure){const badge=document.createElement('span');badge.className='tier-badge';badge.style.backgroundColor=gifts.find(g=>g.tier===p.id)?.color||'#eee';badge.textContent=p.label;$('wheel-legend').append(badge);}
 }
 
-function showSpinResult(gift){$('spin-result-icon').textContent=gift.emoji;$('spin-result-name').textContent=gift.name;$('spin-result-tier').textContent=structure.find(p=>p.id===gift.tier)?.label||'Phần quà';$('spin-result-tier').style.backgroundColor=gift.color;$('spin-result-dialog').showModal();}
+function showSpinResult(gift){setGiftArt($('spin-result-icon'),gift);$('spin-result-name').textContent=gift.name;$('spin-result-tier').textContent=structure.find(p=>p.id===gift.tier)?.label||'Phần quà';$('spin-result-tier').style.backgroundColor=gift.color;$('spin-result-dialog').showModal();}
 
 function render() {
   $('welcome').hidden = false; $('play').hidden = !user; $('account').replaceChildren();
@@ -40,7 +41,7 @@ function render() {
   user.spins.forEach(spin => {
     const isSelected = (selected ?? user.choice?.spin_id) === spin.id;
     const button = document.createElement('button'); button.className = 'gift-option' + (isSelected ? ' selected' : ''); button.disabled = !!user.remaining || spinning || user.readOnly || !!user.fulfillment; button.setAttribute('aria-pressed', String(isSelected));
-    const icon = document.createElement('span'); icon.className = 'gift-icon'; icon.textContent = spin.gift.emoji;
+    const icon = document.createElement('span'); icon.className = 'gift-icon'; setGiftArt(icon,spin.gift);
     const text = document.createElement('span'), title = document.createElement('strong'), sub = document.createElement('small'); title.textContent = spin.gift.name; sub.textContent = (structure.find(p=>p.id===spin.gift.tier)?.label||'Phần quà')+' · Lượt '+spin.turn; button.style.borderLeft='6px solid '+(gifts.find(g=>g.id===spin.gift.id)?.color||spin.gift.color); text.append(title, sub);
     const check = document.createElement('span'); check.className = 'check'; check.textContent = isSelected ? '♥' : '○'; button.append(icon, text, check);
     button.onclick = () => { selected = spin.id; render(); }; $('results').append(button);
@@ -48,7 +49,7 @@ function render() {
   $('confirm-gift').hidden = !!user.remaining || user.readOnly || !!user.fulfillment; $('confirm-gift').disabled = !selected || selected === user.choice?.spin_id || spinning;
   $('confirm-gift').textContent = user.choice ? 'Xác nhận đổi quà ♡' : 'Chốt món quà này ♡';
   $('chosen').hidden = !user.choice;
-  if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); b.textContent = `${gift.emoji} ${gift.name}`; const p = document.createElement('span'); p.textContent = user.fulfillment ? 'Đã chốt quà và gửi thông tin nhận ♡' : 'Đã chốt quà! Bấm Cách nhận quà để hoàn tất nhé ♡'; $('chosen').append(b, p); }
+  if (user.choice) { const gift = user.spins.find(s => s.id === user.choice.spin_id).gift; $('chosen').replaceChildren(); const b = document.createElement('b'); setGiftArt(b,gift);b.append(document.createTextNode(' '+gift.name)); const p = document.createElement('span'); p.textContent = user.fulfillment ? 'Đã chốt quà và gửi thông tin nhận ♡' : 'Đã chốt quà! Bấm Cách nhận quà để hoàn tất nhé ♡'; $('chosen').append(b, p); }
   renderReceiving();
 }
 $('bye-home').onclick = async () => {
@@ -88,7 +89,7 @@ $('confirm-gift').onclick = () => {
   pendingGift = selected;
   const gift = user.spins.find(s => s.id === pendingGift).gift;
   $('gift-confirm-title').textContent = user.choice ? 'Xác nhận đổi quà' : 'Xác nhận chọn quà';
-  $('gift-confirm-name').textContent = gift.emoji + ' ' + gift.name;
+  setGiftArt($('gift-confirm-name'),gift);$('gift-confirm-name').append(document.createTextNode(' '+gift.name));
   $('gift-confirm-note').textContent = user.choice ? 'Bạn muốn đổi sang món này? Sau khi gửi thành công thông tin nhận quà hoặc chuyển khoản, bạn sẽ không đổi quà được nữa.' : 'Bạn chọn món quà này nhé? Sau khi xác nhận, hãy điền cách nhận trong popup tiếp theo. Bạn chỉ có thể đổi quà trước khi gửi thông tin nhận.';
   $('gift-confirm-error').textContent = ''; $('gift-confirm-dialog').showModal();
 };
@@ -109,7 +110,7 @@ $('gift-confirm-save').onclick = async () => {
 async function init() {
   try {
     gifts = await api('gifts');
-    structure = await api('prizes'); drawWheel();
+    structure = await api('prizes'); await preloadGiftArt(gifts); drawWheel();
     prizePage=Number(new URLSearchParams(LuckyBloom.search()).get('page'))||1;
     try { user=await api('me'); } catch(e) { if(e.status!==401)throw e; }
     render(); if(LuckyBloom.path()==='/wheel')scrollToWheel();
@@ -223,7 +224,7 @@ function renderPrizes(){
  $('tier-detail-title').textContent=active.label;
  const items=gifts.filter(g=>g.tier===filter),pages=Math.max(1,Math.ceil(items.length/pageSize));prizePage=Math.min(Math.max(1,prizePage),pages);
  for(const gift of items.slice((prizePage-1)*pageSize,prizePage*pageSize)){
-  const card=document.createElement('article');card.className='prize-card';card.style.backgroundColor=gift.color;const icon=document.createElement('span');icon.className='prize-card-icon';icon.textContent=gift.tier==='special'?'?':gift.emoji;const name=document.createElement('h3');name.textContent=gift.name;card.append(icon,name);$('prize-cards').append(card);
+  const card=document.createElement('article');card.className='prize-card';card.style.backgroundColor=gift.color;const icon=document.createElement('span');icon.className='prize-card-icon';if(gift.tier==='special')icon.textContent='?';else setGiftArt(icon,gift);const name=document.createElement('h3');name.textContent=gift.name;card.append(icon,name);$('prize-cards').append(card);
  }
  $('page-status').textContent='Trang '+prizePage+' / '+pages;$('prizes-prev').disabled=prizePage===1;$('prizes-next').disabled=prizePage===pages;
 }
