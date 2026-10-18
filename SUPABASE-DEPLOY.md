@@ -26,5 +26,6 @@ Người dùng nhập tên và giới tính, không đăng ký. Nhập lại cù
 
 Database mới cần chạy cả hai migration theo thứ tự tên file. Database đã chạy bản đầu chỉ áp dụng 202610180001_gift_catalog.sql một lần. Migration giữ nguyên hồ sơ, kết quả và thông tin nhận quà; các món ngừng quay được giữ trong database để xem lại.
 
-Trọng số loại giải lấy từ cơ cấu: 2 : 3 : 10 : 20 : 60. Chọn loại giải trước, rồi chọn đều các món trong loại đó. Số lượng đang dùng làm trọng số, không phải tồn kho tự giảm. Mỗi loại có một màu riêng. Giải đặc biệt không thể bật quy đổi ở quản trị.
+Vòng quay có 42 ô: đặc biệt 1, nhất 2, nhì 12, ba 12, lắt nhắt 15. Mỗi món giải nhì/ba xuất hiện 2 lần, lắt nhắt xuất hiện 3 lần. Trọng số máy chủ tương ứng 1 : 2 : 12 : 12 : 15. Chọn loại giải trước, rồi chọn đều các món trong loại đó. Số lượng đang dùng làm trọng số, không phải tồn kho tự giảm. Mỗi loại có một màu riêng. Giải đặc biệt không thể bật quy đổi ở quản trị.
 
+Sau migration catalog, áp dụng tiếp 202610180002_gift_icons.sql và 202610180003_wheel_slots.sql theo thứ tự. Trang xem quà có 5 nhóm, không hiển thị mức quy đổi.

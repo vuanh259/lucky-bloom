@@ -23,13 +23,15 @@ export function createApp(options = {}) {
   if (!Array.isArray(gifts) || gifts.length < 2 || gifts.length > 100 || gifts.some(g => !g.id || !g.name || !/^#[0-9a-f]{6}$/i.test(g.color))) throw new Error('gifts.json không hợp lệ');
   const receiving = setupFulfillment(db, gifts);
   db.exec('CREATE TABLE IF NOT EXISTS prize_structure(id TEXT PRIMARY KEY, label TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>=0))');
-  const defaultPrizes = [["special","Giải đặc biệt",2],["first","Giải nhất",3],["second","Giải nhì",10],["third","Giải ba",20],["encourage","Giải lắt nhắt",60]];
+  const defaultPrizes = [["special","Giải đặc biệt",1],["first","Giải nhất",2],["second","Giải nhì",12],["third","Giải ba",12],["encourage","Giải lắt nhắt",15]];
   for (const prize of defaultPrizes) db.prepare('INSERT OR IGNORE INTO prize_structure VALUES(?,?,?)').run(...prize);
   const tierByGift = { surprise:'special', bear:'first', lipstick:'second', flowers:'third', cake:'encourage', tea:'encourage' };
   function prizeStructure() { return defaultPrizes.map(([id]) => db.prepare('SELECT * FROM prize_structure WHERE id=?').get(id)); }
   if(!db.prepare('SELECT 1 FROM app_settings WHERE key=?').get('catalog_20261018')){
     db.exec('BEGIN IMMEDIATE');try{for(const g of gifts){db.prepare('DELETE FROM gift_values WHERE gift_id=?').run(g.id);if(g.cashValue)db.prepare('INSERT INTO gift_values VALUES(?,?)').run(g.id,g.cashValue);}for(const p of defaultPrizes)db.prepare('UPDATE prize_structure SET label=?,quantity=? WHERE id=?').run(p[1],p[2],p[0]);db.prepare('INSERT INTO app_settings VALUES(?,?)').run('catalog_20261018','true');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
   }
+  if(!db.prepare('SELECT 1 FROM app_settings WHERE key=?').get('catalog_icons_20261018')){db.prepare('INSERT OR IGNORE INTO gift_values VALUES(?,?)').run('lemon-tea',10000);db.prepare('INSERT INTO app_settings VALUES(?,?)').run('catalog_icons_20261018','true');}
+  if(!db.prepare('SELECT 1 FROM app_settings WHERE key=?').get('wheel_slots_42')){for(const p of defaultPrizes)db.prepare('UPDATE prize_structure SET quantity=? WHERE id=?').run(p[2],p[0]);db.prepare('INSERT INTO app_settings VALUES(?,?)').run('wheel_slots_42','true');}
   const nameKey = name => name.normalize('NFC').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi-VN');
   function viewState(req) {
     let current;
@@ -86,6 +88,7 @@ export function createApp(options = {}) {
     ['/', ['index.html', 'text/html; charset=utf-8']], ['/bai-anh-em', ['index.html', 'text/html; charset=utf-8']],
     ['/admin', ['admin.html', 'text/html; charset=utf-8']], ['/style.css', ['style.css', 'text/css; charset=utf-8']],
     ['/api-client.js',['api-client.js','text/javascript; charset=utf-8']],['/config.js',['config.js','text/javascript; charset=utf-8']],
+    ['/wheel-layout.js',['wheel-layout.js','text/javascript; charset=utf-8']],
     ['/app.js', ['app.js', 'text/javascript; charset=utf-8']], ['/admin.js', ['admin.js', 'text/javascript; charset=utf-8']]
   ]);
   const server = http.createServer(async (req, res) => {

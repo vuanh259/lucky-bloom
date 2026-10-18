@@ -1,19 +1,21 @@
+import {buildWheelLayout} from './wheel-layout.js';
 const $ = id => document.getElementById(id);
 let gifts = [], user = null, selected = null, spinning = false, rotation = 0;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 async function api(path,data) { return LuckyBloom.request(path,data); }
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 4500); }
 const tierNames={special:'Đặc biệt',first:'Giải nhất',second:'Giải nhì',third:'Giải ba',encourage:'Lắt nhắt'};
-function wheelSegments(){const total=structure.reduce((n,p)=>n+p.quantity,0)||1;let start=0;return structure.filter(p=>p.quantity>0&&gifts.some(g=>g.tier===p.id)).map(p=>{const item={...p,start,arc:p.quantity/total*Math.PI*2,color:gifts.find(g=>g.tier===p.id).color};start+=item.arc;return item;});}
-function drawWheel() {
+function wheelSegments(){return buildWheelLayout(gifts,structure);}
+function drawWheel(){
  const canvas=$('wheel'),ctx=canvas.getContext('2d'),c=canvas.width/2,r=c-4;ctx.clearRect(0,0,canvas.width,canvas.height);
- for(const tier of wheelSegments()){
-  const start=-Math.PI/2+tier.start;ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,start,start+tier.arc);ctx.closePath();ctx.fillStyle=tier.color;ctx.fill();ctx.strokeStyle='#fff9ef';ctx.lineWidth=4;ctx.stroke();
-  ctx.save();ctx.translate(c,c);ctx.rotate(start+tier.arc/2);ctx.translate(r*.7,0);ctx.rotate(Math.PI/2);ctx.textAlign='center';ctx.fillStyle='#523e3b';ctx.font='600 '+(tier.arc<.25?18:29)+'px "Segoe UI",sans-serif';ctx.fillText(tierNames[tier.id],0,0);ctx.restore();
+ for(const gift of wheelSegments()){
+  const start=-Math.PI/2+gift.start;ctx.beginPath();ctx.moveTo(c,c);ctx.arc(c,c,r,start,start+gift.arc);ctx.closePath();ctx.fillStyle=gift.color;ctx.fill();ctx.strokeStyle='#fff9ef';ctx.lineWidth=3;ctx.stroke();
+  ctx.save();ctx.translate(c,c);ctx.rotate(start+gift.arc/2);ctx.translate(r*.79,0);ctx.rotate(Math.PI/2);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#523e3b';ctx.font=gift.tier==='special'?'bold 62px "Segoe UI",sans-serif':'42px "Segoe UI Emoji",sans-serif';ctx.fillText(gift.tier==='special'?'?':gift.emoji,0,0,48);ctx.restore();
  }
- canvas.setAttribute('aria-label','Vòng quay 5 loại giải. Màu và tỉ lệ theo cơ cấu giải thưởng.');
- $('wheel-legend').replaceChildren();for(const p of wheelSegments()){const badge=document.createElement('span');badge.className='tier-badge';badge.style.backgroundColor=p.color;badge.textContent=p.label;$('wheel-legend').append(badge);}
+ canvas.setAttribute('aria-label','Vòng quay gồm '+wheelSegments().length+' ô quà xen kẽ loại giải. Giải đặc biệt là dấu hỏi.');
+ $('wheel-legend').replaceChildren();for(const p of structure){const badge=document.createElement('span');badge.className='tier-badge';badge.style.backgroundColor=gifts.find(g=>g.tier===p.id)?.color||'#eee';badge.textContent=p.label;$('wheel-legend').append(badge);}
 }
+
 function showSpinResult(gift){$('spin-result-icon').textContent=gift.emoji;$('spin-result-name').textContent=gift.name;$('spin-result-tier').textContent=structure.find(p=>p.id===gift.tier)?.label||'Phần quà';$('spin-result-tier').style.backgroundColor=gift.color;$('spin-result-dialog').showModal();}
 
 function render() {
@@ -67,7 +69,7 @@ $('auth-form').onsubmit = async event => {
 $('spin').onclick = async () => {
   if (spinning) return; spinning = true; $('spin-mobile').disabled=true;$('spin-mobile').textContent='May mắn đang đến…'; $('spin').disabled = true; $('spin').textContent = 'May mắn đang đến…'; $('play-error').textContent = '';
   try {
-    const next=await api('spin',{}),result=next.spins.at(-1),tier=wheelSegments().find(p=>p.id===result.gift.tier);
+    const next=await api('spin',{}),result=next.spins.at(-1),options=wheelSegments().filter(p=>p.id===result.gift.id),tier=options[Math.floor(Math.random()*options.length)];
     const target=(360-(tier.start+tier.arc/2)*180/Math.PI)%360;
     rotation+=360*8+(target-rotation%360+360)%360;
     $('wheel').style.transform=`rotate(${rotation}deg)`;
@@ -108,7 +110,6 @@ async function init() {
   try {
     gifts = await api('gifts');
     structure = await api('prizes'); drawWheel();
-    for (const prize of structure) { const option=document.createElement('option'); option.value=prize.id; option.textContent=prize.label; $('prizes-filter').append(option); }
     prizePage=Number(new URLSearchParams(LuckyBloom.search()).get('page'))||1;
     try { user=await api('me'); } catch(e) { if(e.status!==401)throw e; }
     render(); if(LuckyBloom.path()==='/wheel')scrollToWheel();
@@ -208,27 +209,32 @@ function renderPages() {
   for (const prize of structure) { const row=document.createElement('div'); row.className='structure-row';row.style.borderLeft='5px solid '+(gifts.find(g=>g.tier===prize.id)?.color||'#eee'); const title=document.createElement('span'); title.textContent=prize.label; const count=document.createElement('strong'); count.textContent=prize.quantity+' giải'; row.append(title,count); $('structure-list').append(row); }
   renderPrizes();
 }
-function renderPrizes() {
-  const filter=$('prizes-filter').value;
-  const items=gifts.filter(g=>!filter||g.tier===filter);
-  const pages=Math.max(1,Math.ceil(items.length/pageSize)); prizePage=Math.min(Math.max(1,prizePage),pages);
-  $('prize-cards').replaceChildren();
-  for (const gift of items.slice((prizePage-1)*pageSize,prizePage*pageSize)) {
-    const card=document.createElement('article'); card.className='prize-card'; card.style.backgroundColor=gift.color;
-    const icon=document.createElement('span'); icon.className='prize-card-icon'; icon.textContent=gift.emoji;
-    const label=document.createElement('small'); label.textContent=structure.find(p=>p.id===gift.tier)?.label || 'Phần quà';
-    const name=document.createElement('h3'); name.textContent=gift.name; const value=document.createElement('p');value.className='gift-value';value.textContent=gift.tier==='special'?'Không quy đổi':gift.cashValue?money(gift.cashValue):'Chỉ nhận quà';card.append(icon,label,name,value); $('prize-cards').append(card);
-  }
-  $('page-status').textContent=`Trang ${prizePage} / ${pages}`;
-  $('prizes-prev').disabled=prizePage===1; $('prizes-next').disabled=prizePage===pages;
+function renderPrizes(){
+ const params=new URLSearchParams(LuckyBloom.search()),filter=params.get('tier')||'';
+ const active=structure.find(p=>p.id===filter);$('tier-menu').hidden=!!active;$('tier-detail').hidden=!active;
+ $('tier-menu').replaceChildren();
+ for(const prize of structure){
+  const button=document.createElement('button');button.className='tier-category';button.style.backgroundColor=gifts.find(g=>g.tier===prize.id)?.color||'#eee';
+  const icon=document.createElement('span');icon.className='tier-category-icon';icon.textContent={special:'?',first:'🏆',second:'🌸',third:'🍀',encourage:'🍬'}[prize.id];
+  const title=document.createElement('strong');title.textContent=prize.label;const note=document.createElement('small');note.textContent='Khám phá '+gifts.filter(g=>g.tier===prize.id).length+' món quà →';button.append(icon,title,note);
+  button.onclick=()=>{prizePage=1;navigate('/prizes?tier='+prize.id);};$('tier-menu').append(button);
+ }
+ $('prize-cards').replaceChildren();if(!active)return;
+ $('tier-detail-title').textContent=active.label;
+ const items=gifts.filter(g=>g.tier===filter),pages=Math.max(1,Math.ceil(items.length/pageSize));prizePage=Math.min(Math.max(1,prizePage),pages);
+ for(const gift of items.slice((prizePage-1)*pageSize,prizePage*pageSize)){
+  const card=document.createElement('article');card.className='prize-card';card.style.backgroundColor=gift.color;const icon=document.createElement('span');icon.className='prize-card-icon';icon.textContent=gift.tier==='special'?'?':gift.emoji;const name=document.createElement('h3');name.textContent=gift.name;card.append(icon,name);$('prize-cards').append(card);
+ }
+ $('page-status').textContent='Trang '+prizePage+' / '+pages;$('prizes-prev').disabled=prizePage===1;$('prizes-next').disabled=prizePage===pages;
 }
+
 document.addEventListener('click',event=>{
   const link=event.target.closest('[data-page]'); if(!link)return;
   event.preventDefault(); navigate(link.dataset.page);
 });
 window.addEventListener('popstate',()=>{prizePage=Number(new URLSearchParams(LuckyBloom.search()).get('page'))||1;render();});
-$('prizes-filter').onchange=()=>{prizePage=1;renderPrizes();};
-function changePrizePage(delta) { prizePage+=delta; LuckyBloom.navigate(`/prizes?page=${prizePage}`,true); renderPrizes(); }
+$('tier-list-back').onclick=()=>navigate('/prizes');
+function changePrizePage(delta) { prizePage+=delta; LuckyBloom.navigate(`/prizes?tier=${new URLSearchParams(LuckyBloom.search()).get('tier')||''}&page=${prizePage}`,true); renderPrizes(); }
 $('prizes-prev').onclick=()=>changePrizePage(-1); $('prizes-next').onclick=()=>changePrizePage(1);
 $('prizes-back').onclick=()=>navigate(user?.gender==='female'?'/wheel':'/');
 $('open-receiving').onclick=openReceiving; $('open-wish').onclick=openCelebration;

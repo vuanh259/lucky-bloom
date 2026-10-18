@@ -4,7 +4,7 @@ const supabaseUrl=process.env.SUPABASE_URL?.replace(/\/$/,'');
 if(!supabaseUrl||!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(supabaseUrl))throw Error('Điền SUPABASE_URL=https://PROJECT_REF.supabase.co trong .env trước khi build.');
 if(!/^\/[A-Za-z0-9._-]+\/$/.test(basePath)&&basePath!=='/')throw Error('PAGES_BASE_PATH cần có dạng /lucky-bloom/ hoặc /.');
 mkdirSync('dist-pages',{recursive:true});
-const allowed=['index.html','admin.html','style.css','app.js','admin.js','api-client.js'];
+const allowed=['index.html','admin.html','style.css','app.js','admin.js','api-client.js','wheel-layout.js'];
 for(const file of allowed){
  let source=readFileSync('public/'+file,'utf8');
  if(file.endsWith('.html')){

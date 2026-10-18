@@ -31,7 +31,9 @@ test('Supabase/PostgreSQL migration enforces three spins, private replay, editab
   await db.exec('set role authenticated');await assert.rejects(db.query('select * from lucky_bloom.receiving'));await db.exec('reset role');
   assert.equal((await db.query("select public from storage.buckets where id='kk'")).rows[0].public,false);
   await db.exec(readFileSync(new URL('../supabase/migrations/202610180001_gift_catalog.sql',import.meta.url),'utf8'));
-  const catalog=await rpc('gifts');assert.equal(catalog.length,20);assert.deepEqual((await rpc('prizes')).map(p=>p.quantity),[2,3,10,20,60]);
+  await db.exec(readFileSync(new URL('../supabase/migrations/202610180002_gift_icons.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL('../supabase/migrations/202610180003_wheel_slots.sql',import.meta.url),'utf8'));
+  const catalog=await rpc('gifts');assert.equal(catalog.length,20);assert.equal(catalog.find(g=>g.id==='lemon-tea').name,'Trà chanh');assert.ok(!catalog.some(g=>g.id==='hairclip'));assert.equal(new Set(catalog.map(g=>g.emoji)).size,20);assert.deepEqual((await rpc('prizes')).map(p=>p.quantity),[1,2,12,12,15]);
   assert.equal((await rpc('me',{},owner)).spins.length,3);assert.equal((await rpc('me',{},owner)).fulfillment.phone,'0900000000');
   for(const tier of ['special','first','second','third','encourage'])assert.equal(new Set(catalog.filter(g=>g.tier===tier).map(g=>g.color)).size,1);
   assert.equal(new Set(catalog.map(g=>g.color)).size,5);assert.equal(catalog.find(g=>g.id==='surprise').cashValue,null);
@@ -58,9 +60,9 @@ test('Edge handler rejects forbidden origins, bad admin password and SVG uploads
  assert.ok(!JSON.stringify(await (await handler(req('gifts'))).json()).includes(env.SUPABASE_SERVICE_ROLE_KEY));
 });
 
-test('tier weights follow 2:3:10:20:60 independently of gift counts',()=>{
+test('tier weights match the 42 visible slots',()=>{
  const catalog=JSON.parse(readFileSync(new URL('../gifts.json',import.meta.url),'utf8'));
- const weights={special:2,first:3,second:10,third:20,encourage:60},prizes=Object.entries(weights).map(([id,quantity])=>({id,quantity})),counts=Object.fromEntries(Object.keys(weights).map(id=>[id,0]));
- for(let ticket=0;ticket<95;ticket++){let call=0;const i=pickGiftIndex(catalog,prizes,n=>call++===0?ticket:0);counts[catalog[i].tier]++;}
+ const weights={special:1,first:2,second:12,third:12,encourage:15},prizes=Object.entries(weights).map(([id,quantity])=>({id,quantity})),counts=Object.fromEntries(Object.keys(weights).map(id=>[id,0]));
+ for(let ticket=0;ticket<42;ticket++){let call=0;const i=pickGiftIndex(catalog,prizes,n=>call++===0?ticket:0);counts[catalog[i].tier]++;}
  assert.deepEqual(counts,weights);assert.equal(pickGiftIndex(catalog,prizes.map(p=>({...p,quantity:0})),()=>0),-1);
 });

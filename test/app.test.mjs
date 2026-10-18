@@ -220,7 +220,7 @@ test('name and gender replay returns results without private payment data or mut
 test('public prize structure has quantities only; only admin can configure it; pages serve', async t => {
   const server=await serve(t), guest=client(server), admin=client(server);
   const prizes=(await guest('prizes')).data;
-  assert.deepEqual(prizes.map(p=>p.quantity),[2,3,10,20,60]);
+  assert.deepEqual(prizes.map(p=>p.quantity),[1,2,12,12,15]);
   assert.ok(prizes.every(p=>Object.keys(p).sort().join(',')==='id,label,quantity'));
   assert.equal((await guest('admin/prizes',{items:prizes})).status,401);
   await admin('admin/login',{password:'test-admin-password'});

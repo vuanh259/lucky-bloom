@@ -26,7 +26,7 @@
   {
     "id": "candy-bouquet",
     "name": "Bó hoa kẹo mút",
-    "emoji": "💐",
+    "emoji": "🍭💐",
     "color": "#d9ccff",
     "tier": "second",
     "cashValue": 30000
@@ -34,7 +34,7 @@
   {
     "id": "snack-bag",
     "name": "Bịch bimbim",
-    "emoji": "🍿",
+    "emoji": "🛍️🍿",
     "color": "#d9ccff",
     "tier": "second",
     "cashValue": 30000
@@ -42,7 +42,7 @@
   {
     "id": "mini-lego",
     "name": "Mô hình lego mini",
-    "emoji": "🧱",
+    "emoji": "🤖",
     "color": "#d9ccff",
     "tier": "second",
     "cashValue": 30000
@@ -50,7 +50,7 @@
   {
     "id": "keychain",
     "name": "Móc khóa",
-    "emoji": "🔑",
+    "emoji": "🔗🧸",
     "color": "#d9ccff",
     "tier": "second",
     "cashValue": 30000
@@ -72,9 +72,9 @@
     "cashValue": 30000
   },
   {
-    "id": "hairclip",
-    "name": "Kẹp tóc",
-    "emoji": "🎀",
+    "id": "lemon-tea",
+    "name": "Trà chanh",
+    "emoji": "🍋",
     "color": "#bfe9dd",
     "tier": "third",
     "cashValue": 10000
@@ -82,7 +82,7 @@
   {
     "id": "hairtie",
     "name": "Dây buộc tóc",
-    "emoji": "🎀",
+    "emoji": "🪢",
     "color": "#bfe9dd",
     "tier": "third",
     "cashValue": 10000
@@ -130,7 +130,7 @@
   {
     "id": "three-lollipops",
     "name": "3 cái kẹo mút",
-    "emoji": "🍭",
+    "emoji": "🍭×3",
     "color": "#cbe5ff",
     "tier": "encourage",
     "cashValue": 3000
@@ -138,7 +138,7 @@
   {
     "id": "snack-pack",
     "name": "1 gói bimbim",
-    "emoji": "🍿",
+    "emoji": "🍟",
     "color": "#cbe5ff",
     "tier": "encourage",
     "cashValue": 5000

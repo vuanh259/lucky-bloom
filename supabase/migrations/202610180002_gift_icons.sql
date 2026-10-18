@@ -1,0 +1,12 @@
+begin;
+update lucky_bloom.gifts set active=false where id='hairclip';
+insert into lucky_bloom.gifts(id,name,emoji,color,tier,amount,active) values('lemon-tea','Trà chanh','🍋','#bfe9dd','third',10000,true) on conflict(id) do update set name=excluded.name,emoji=excluded.emoji,active=true;
+update lucky_bloom.gifts set emoji='🪢' where id='hairtie';
+update lucky_bloom.gifts set emoji='🎀' where id='mini-hairclip';
+update lucky_bloom.gifts set emoji='🍭💐' where id='candy-bouquet';
+update lucky_bloom.gifts set emoji='🛍️🍿' where id='snack-bag';
+update lucky_bloom.gifts set emoji='🍟' where id='snack-pack';
+update lucky_bloom.gifts set emoji='🍭×3' where id='three-lollipops';
+update lucky_bloom.gifts set emoji='🤖' where id='mini-lego';
+update lucky_bloom.gifts set emoji='🔗🧸' where id='keychain';
+commit;
