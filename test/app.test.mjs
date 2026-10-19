@@ -91,7 +91,7 @@ test('SQLite persists across server restarts', async t => {
   for (let i = 0; i < 3; i++) await api('spin', {});
   const player = (await api('me')).data;
   await api('choose', { spinId: player.spins[0].id });
-  await api('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử lưu qua restart' });
+  assert.equal((await api('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử lưu qua restart',deliveryDate:'2030-10-20',deliveryFrom:'14:00',deliveryTo:'16:00',drinkFlavor:'Ô long ít đường' })).status,200);
   await new Promise(resolve => { first.closeAllConnections(); first.close(resolve); });
   second = createApp({ databasePath }); second.listen(0, '127.0.0.1'); await once(second, 'listening');
   const other = client(second, api.cookie);
