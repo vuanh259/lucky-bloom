@@ -133,6 +133,7 @@ async function setValues(admin, amount = 50000) {
 }
 test('delivery requires a choice and valid contact details; saves once and is private', async t => {
   const server = await serve(t), visitor = client(server), stranger = client(server), admin = client(server);
+  await admin('admin/login',{password:'test-admin-password'});const tiers=(await admin('admin/prizes')).data;await admin('admin/prizes',{items:tiers.map(p=>({...p,quantity:p.id==='encourage'?1:0}))});
   await register(visitor);
   assert.equal((await visitor('fulfillment', { mode: 'gift', phone: '0900000000', address: 'Địa chỉ kiểm thử' })).status, 400);
   for (let i = 0; i < 3; i++) await visitor('spin', {});

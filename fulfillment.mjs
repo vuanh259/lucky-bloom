@@ -42,6 +42,14 @@ export function setupFulfillment(db, gifts) {
       details.phone = text(b.phone, 20).replace(/[\s().-]/g, ''); details.address = text(b.address, 500);
       if (!/^(?:0\d{9}|\+84\d{9})$/.test(details.phone)) throw error('Hãy nhập số điện thoại Việt Nam hợp lệ (10 số hoặc +84).');
       if (details.address.length < 10 || details.address.length > 500) throw error('Hãy nhập địa chỉ nhận quà đầy đủ (10–500 ký tự).');
+      if(['tea','lemon-tea'].includes(JSON.parse(choice.gift).id)){
+        const date=text(b.deliveryDate,10),from=text(b.deliveryFrom,5),to=text(b.deliveryTo,5);
+        const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date+'T00:00:00Z'))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date||date<today)throw error('Chọn ngày nhận hợp lệ, từ hôm nay trở đi.');
+        if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(from)||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(to)||from>=to)throw error('Chọn khoảng giờ hợp lệ trong cùng một ngày, giờ kết thúc sau giờ bắt đầu.');
+        Object.assign(details,{deliveryDate:date,deliveryFrom:from,deliveryTo:to});
+        if(JSON.parse(choice.gift).id==='tea'){details.drinkFlavor=text(b.drinkFlavor,120);if(!details.drinkFlavor||details.drinkFlavor.length>120)throw error('Nhập vị trà sữa muốn uống (tối đa 120 ký tự).');}
+      }
     } else if (mode === 'cash') {
       cashAmount = value(JSON.parse(choice.gift).id);
       if (cashAmount === null) throw error('Món quà này chưa được cấu hình giá trị quy đổi.');

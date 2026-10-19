@@ -44,6 +44,22 @@ test('Supabase/PostgreSQL migration enforces three spins, private replay, editab
   const specialState=await rpc('me',{},special);assert.ok(specialState.spins.every(s=>s.gift.id==='surprise'));
   await rpc('choose',{spinId:specialState.spins[0].id},special);
   assert.equal((await rpc('receive',{mode:'cash',expectedSpinId:specialState.spins[0].id,expectedAmount:1000},special)).status,400);
+
+  await db.exec(readFileSync(new URL('../supabase/migrations/202610190001_drink_delivery.sql',import.meta.url),'utf8'));
+  const drinkCatalog=await rpc('gifts');
+  for(const [id,hash]of [['tea','e'.repeat(64)],['lemon-tea','f'.repeat(64)]]){
+   await rpc('join',{name:'Lịch nhận '+id,name_key:'lịch nhận '+id,gender:'female',new_hash:hash});
+   for(let i=0;i<3;i++)await rpc('spin',{random_index:drinkCatalog.findIndex(g=>g.id===id)},hash);
+   const state=await rpc('me',{},hash);await rpc('choose',{spinId:state.spins[0].id},hash);
+   const data={mode:'gift',expectedSpinId:state.spins[0].id,phone:'0900000000',address:'Địa chỉ kiểm thử đồ uống',deliveryDate:'2030-10-20',deliveryFrom:'14:00',deliveryTo:'16:00'};
+   assert.equal((await rpc('receive',data,hash)).status,id==='tea'?400:undefined);
+   if(id==='tea'){
+    for(const invalid of [{deliveryDate:'2030-02-30'},{deliveryDate:'2020-10-20'},{deliveryFrom:'25:00'},{deliveryTo:'13:00'}])assert.equal((await rpc('receive',{...data,drinkFlavor:'Ô long',...invalid},hash)).status,400);
+    const saved=await rpc('receive',{...data,drinkFlavor:'Ô long ít đường'},hash);assert.equal(saved.fulfillment.drinkFlavor,'Ô long ít đường');assert.equal(saved.fulfillment.deliveryDate,'2030-10-20');
+   }else assert.equal((await rpc('me',{},hash)).fulfillment.drinkFlavor,undefined);
+   assert.equal((await rpc('me',{},hash)).fulfillment.deliveryTo,'16:00');
+   const replay=await rpc('join',{name:'Lịch nhận '+id,name_key:'lịch nhận '+id,gender:'female',new_hash:(id==='tea'?'1':'2').repeat(64)});assert.equal(replay.fulfillment.deliveryDate,undefined);assert.equal(replay.fulfillment.drinkFlavor,undefined);
+  }
  }finally{await db.close();}
 });
 

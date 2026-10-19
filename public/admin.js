@@ -34,7 +34,7 @@ $('search').oninput = render; $('refresh').onclick = load;
 $('export').onclick = () => {
   // Prefix formula-looking values to avoid spreadsheet formula execution.
   const cell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, m => "'" + m).replaceAll('"', '""') + '"';
-  const rows = [['Tên', 'Mã người chơi', 'Giới tính', 'Lượt 1', 'Lượt 2', 'Lượt 3', 'Quà đã chọn', 'Hình thức nhận', 'Giá trị quy đổi (VNĐ)', 'Số điện thoại', 'Địa chỉ', 'Ngân hàng', 'Số tài khoản', 'Chủ tài khoản', 'Có QR', 'Thời gian tham gia (GMT+7)', 'Thời gian chốt (GMT+7)'], ...players.map(p => [p.name, p.id, p.gender === 'female' ? 'Nữ' : 'Nam', ...[0, 1, 2].map(i => p.spins[i]?.gift.name || ''), chosen(p)?.name || '', p.fulfillment?.mode || '', p.fulfillment?.cashAmount ?? '', p.fulfillment?.phone || '', p.fulfillment?.address || '', p.fulfillment?.bank || '', p.fulfillment?.account || '', p.fulfillment?.holder || '', p.fulfillment?.hasQr ? 'Có (xem trong quản trị)' : '', date(p.created_at), p.choice ? date(p.choice.created_at) : ''])];
+  const rows = [['Tên', 'Mã người chơi', 'Giới tính', 'Lượt 1', 'Lượt 2', 'Lượt 3', 'Quà đã chọn', 'Hình thức nhận', 'Giá trị quy đổi (VNĐ)', 'Số điện thoại', 'Địa chỉ', 'Ngày nhận đồ uống', 'Từ giờ (GMT+7)', 'Đến giờ (GMT+7)', 'Vị trà sữa', 'Ngân hàng', 'Số tài khoản', 'Chủ tài khoản', 'Có QR', 'Thời gian tham gia (GMT+7)', 'Thời gian chốt (GMT+7)'], ...players.map(p => [p.name, p.id, p.gender === 'female' ? 'Nữ' : 'Nam', ...[0, 1, 2].map(i => p.spins[i]?.gift.name || ''), chosen(p)?.name || '', p.fulfillment?.mode || '', p.fulfillment?.cashAmount ?? '', p.fulfillment?.phone || '', p.fulfillment?.address || '', p.fulfillment?.deliveryDate || '', p.fulfillment?.deliveryFrom || '', p.fulfillment?.deliveryTo || '', p.fulfillment?.drinkFlavor || '', p.fulfillment?.bank || '', p.fulfillment?.account || '', p.fulfillment?.holder || '', p.fulfillment?.hasQr ? 'Có (xem trong quản trị)' : '', date(p.created_at), p.choice ? date(p.choice.created_at) : ''])];
   const blob = new Blob(['\ufeff' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'lucky-bloom-nguoi-choi.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
@@ -57,7 +57,7 @@ function receivingCell(p) {
   const td = document.createElement('td'); td.className = 'receipt-detail'; const f = p.fulfillment;
   if (!f) { td.textContent = p.choice ? 'Chưa gửi thông tin nhận' : '—'; return td; }
   const text = document.createElement('div');
-  text.textContent = f.mode === 'gift' ? `🎁 Nhận quà\nSĐT: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Quy đổi: ${new Intl.NumberFormat('vi-VN').format(f.cashAmount)} đ\n` + (f.method === 'bank' ? `${f.bank}\nSTK: ${f.account}\nChủ TK: ${f.holder}` : 'Nhận bằng mã QR'); td.append(text);
+  text.textContent = f.mode === 'gift' ? `🎁 Nhận quà\nSĐT: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Quy đổi: ${new Intl.NumberFormat('vi-VN').format(f.cashAmount)} đ\n` + (f.method === 'bank' ? `${f.bank}\nSTK: ${f.account}\nChủ TK: ${f.holder}` : 'Nhận bằng mã QR'); if(f.deliveryDate)text.textContent+='\nNgày nhận: '+f.deliveryDate.split('-').reverse().join('/')+'\nKhoảng giờ: '+f.deliveryFrom+'–'+f.deliveryTo+' (GMT+7)'+(f.drinkFlavor?'\nVị trà sữa: '+f.drinkFlavor:'');td.append(text);
   if (f.hasQr) {
     const a=document.createElement('button');a.className='text-button';a.textContent='Xem ảnh QR ↗';
     a.onclick=async()=>{

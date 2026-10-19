@@ -136,12 +136,18 @@ function renderReceiving() {
   const h = document.createElement('h3'); h.textContent = 'Đã gửi thông tin nhận ♡';
   const detail = document.createElement('p');
   detail.textContent = f.redacted ? (f.mode === 'gift' ? '🎁 Bạn đã chọn nhận quà. Thông tin nhận đã được lưu riêng tư.' : '💸 Bạn đã chọn nhận giá trị tương đương: ' + money(f.cashAmount)) : f.mode === 'gift' ? `🎁 Nhận quà\nĐiện thoại: ${f.phone}\nĐịa chỉ: ${f.address}` : `💸 Nhận giá trị tương đương: ${money(f.cashAmount)}\n` + (f.method === 'bank' ? `Ngân hàng: ${f.bank}\nSố tài khoản: ${f.account}\nChủ tài khoản: ${f.holder}` : 'Nhận qua mã QR bạn đã tải lên.');
+  if(!f.redacted&&f.deliveryDate)detail.textContent+='\nNgày nhận: '+f.deliveryDate.split('-').reverse().join('/')+'\nKhoảng giờ: '+f.deliveryFrom+'–'+f.deliveryTo+' (GMT+7)'+(f.drinkFlavor?'\nVị trà sữa: '+f.drinkFlavor:'');
   $('receive-summary').append(h, detail);
   if (f.hasQr) { const img = document.createElement('img'); img.className = 'qr-preview'; LuckyBloom.qr().then(url=>{if(img.isConnected)img.src=url;else if(url.startsWith('blob:'))URL.revokeObjectURL(url);}).catch(()=>{img.alt='Không tải được QR. Hãy thử lại.';}); img.alt = 'QR nhận tiền đã gửi'; $('receive-summary').append(img); }
   const note = document.createElement('p'); note.textContent = 'Người tổ chức đã nhận được thông tin. Nếu cần sửa, hãy liên hệ người tổ chức nhé.'; $('receive-summary').append(note);
 }
 function syncReceiving() {
   const cash = $('cash-mode').checked, qr = document.querySelector('[name=method][value=qr]').checked;
+  const gift=user?.spins.find(s=>s.id===user.choice?.spin_id)?.gift,drink=!cash&&['tea','lemon-tea'].includes(gift?.id),milk=drink&&gift.id==='tea';
+  $('drink-fields').hidden=!drink;$('drink-flavor-fields').hidden=!milk;
+  for(const id of ['delivery-date','delivery-from','delivery-to']){$(id).disabled=!drink;$(id).required=drink;}
+  $('drink-flavor').disabled=!milk;$('drink-flavor').required=milk;
+  $('delivery-date').min=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   $('delivery-fields').hidden = cash; $('cash-fields').hidden = !cash;
   $('bank-fields').hidden = qr; $('qr-fields').hidden = !qr;
   for (const id of ['receive-phone', 'receive-address']) { $(id).disabled = cash; $(id).required = !cash; }
@@ -164,6 +170,7 @@ $('receiving-form').onsubmit = async event => {
   try {
     const data = Object.fromEntries(new FormData(event.currentTarget));
     data.expectedSpinId = user.choice.spin_id;
+    if(data.mode==='gift'&&data.deliveryFrom&&data.deliveryTo&&data.deliveryFrom>=data.deliveryTo)throw new Error('Giờ kết thúc cần sau giờ bắt đầu trong cùng ngày.');
     if (data.mode === 'cash') {
       data.expectedAmount = user.spins.find(s => s.id === user.choice.spin_id).gift.cashValue;
       if (data.method === 'qr') { if (!qrData) throw new Error('Hãy chờ ảnh QR tải xong hoặc chọn lại ảnh.'); data.qrData = qrData; }
